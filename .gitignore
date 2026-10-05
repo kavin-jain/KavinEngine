@@ -1,0 +1,6 @@
+build/
+data/
+*.o
+/engine
+nets/wip/
+.pio/
