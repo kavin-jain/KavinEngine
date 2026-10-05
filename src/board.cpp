@@ -147,3 +147,61 @@ std::string move_to_uci(Move m) {
     if (is_promo(m)) s += "nbrq"[promo_type(m) - KNIGHT];
     return s;
 }
+
+bool Board::make(Move m) {
+    StateInfo& st = history[game_ply];
+    st.key = key; st.castling = castling; st.ep = ep; st.halfmove = halfmove; st.captured = NO_PIECE;
+    const int from = from_sq(m), to = to_sq(m), flags = flags_of(m);
+    const Color us = stm;
+    const int pc = mailbox[from];
+
+    key ^= SideKey;
+    if (ep != NO_SQ) { key ^= EpKeys[file_of(ep)]; ep = NO_SQ; }
+    ++halfmove;
+    if (flags == EP_CAPTURE) {
+        int cap = to + (us == WHITE ? -8 : 8);
+        st.captured = mailbox[cap]; remove(cap); halfmove = 0;
+    } else if (is_capture(m)) {
+        st.captured = mailbox[to]; remove(to); halfmove = 0;
+    }
+    move_piece(from, to);
+    if (type_of(pc) == PAWN) {
+        halfmove = 0;
+        if (flags == DOUBLE_PUSH) { ep = (from + to) / 2; key ^= EpKeys[file_of(ep)]; }
+        else if (is_promo(m)) { remove(to); put(make_piece(us, promo_type(m)), to); }
+    } else if (flags == KING_CASTLE) {
+        move_piece(to + 1, to - 1);  // h-rook to f-file
+    } else if (flags == QUEEN_CASTLE) {
+        move_piece(to - 2, to + 1);  // a-rook to d-file
+    }
+    key ^= CastleKeys[castling];
+    castling &= CastlingMask[from] & CastlingMask[to];
+    key ^= CastleKeys[castling];
+    stm = ~us;
+    if (us == BLACK) ++fullmove;
+    ++game_ply;
+    if (attacked(king_sq(us), stm)) { unmake(m); return false; }
+    return true;
+}
+
+void Board::unmake(Move m) {
+    --game_ply;
+    const StateInfo& st = history[game_ply];
+    const int from = from_sq(m), to = to_sq(m), flags = flags_of(m);
+    stm = ~stm;
+    const Color us = stm;
+    if (us == BLACK) --fullmove;
+    if (is_promo(m)) { remove(to); put(make_piece(us, PAWN), to); }
+    if (flags == KING_CASTLE) move_piece(to - 1, to + 1);
+    else if (flags == QUEEN_CASTLE) move_piece(to + 1, to - 2);
+    move_piece(to, from);
+    if (flags == EP_CAPTURE) put(st.captured, to + (us == WHITE ? -8 : 8));
+    else if (st.captured != NO_PIECE) put(st.captured, to);
+    key = st.key; castling = st.castling; ep = st.ep; halfmove = st.halfmove;  // restore exactly
+}
+
+void Board::trim_history() {
+    int keep = std::min(halfmove, game_ply);
+    std::memmove(history, history + (game_ply - keep), size_t(keep) * sizeof(StateInfo));
+    game_ply = keep;
+}
