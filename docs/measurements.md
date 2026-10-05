@@ -9,3 +9,7 @@ Numbers that later plans depend on. Every entry: date, command, result.
 - PC search speed: ~7.1–7.7 M nps from startpos; depth 15 reached in 0.9 s under `go wtime 10000 winc 100`.
 - ESP32 engine build (2026-10-05): static RAM 86,644 / 327,680 B, flash 543 KB. `MAX_GAME_PLY=256` on device: the first build with 1,024 entries used 141,940 B static, which would have starved the 128 KB TT + 72 KB search stack.
 - ESP32 device perft / nps / boot heap / stop latency: **deferred** (board not connected).
+
+## 2026-10-06 — M2
+- Download speed from database.lichess.org: 11.8 MB/s (200 MB range request) → ~32 min for the 22.4 GB eval DB.
+- Converter on the first 60 MB (678,229 lines): keep 352,503 (52.0%); mate 125,006 (18.4%); noisy 103,207 (15.2%); too_shallow (<20) 62,611 (9.2%); in_check 29,294 (4.3%); too_big (>3000 cp) 5,607 (0.8%); bad_fen 1 (the truncated last line).
