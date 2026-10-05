@@ -4,3 +4,9 @@ data/
 /engine
 nets/wip/
 .pio/
+/engine-material
+/build/
+.venv/
+.deps/
+books/
+results/sprt/
