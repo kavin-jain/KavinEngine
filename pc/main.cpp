@@ -1,2 +1,3 @@
-// pc/main.cpp — stub until Task 9 adds the UCI loop.
-int main() { return 0; }
+#include "../src/uci.h"
+
+int main(int argc, char** argv) { return uci_main(argc, argv); }

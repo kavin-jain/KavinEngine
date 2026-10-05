@@ -1,8 +1,6 @@
 // tests/test_main.cpp
 #include "test.h"
-#include "../src/board.h"
-#include "../src/eval.h"
-#include "../src/search.h"
+#include "../src/uci.h"
 
 std::vector<std::pair<const char*, TestFn>>& registry() {
     static std::vector<std::pair<const char*, TestFn>> r;
@@ -11,7 +9,7 @@ std::vector<std::pair<const char*, TestFn>>& registry() {
 int g_failures = 0;
 
 int main() {
-    init_bitboards(); Board::init(); eval_init(); search_init(); g_tt.resize(16u << 20, false);  // Task 9 replaces this with engine_init()
+    engine_init();
     for (auto& t : registry()) {
         int before = g_failures;
         t.second();
