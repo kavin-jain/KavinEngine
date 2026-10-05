@@ -39,7 +39,7 @@ Also due by 2027-01-20:
 ## 4. Architecture
 ```
 Chess-Engine/
-  src/            portable core (C++17, no exceptions/RTTI use, no heap allocation after init)
+  src/            portable core (C++17, no exceptions/RTTI use; all allocation — TT, attack tables, threads — happens in init, none during search)
     types.h       Square, Piece, Move (16-bit), Bitboard (uint64_t), Score
     bitboard.*    attack tables, magic bitboards, bit helpers (__builtin_popcountll/ctzll)
     board.*       Board: set_fen, make/unmake, Zobrist key, in_check, is_draw (50-move, repetition, insufficient material)
@@ -51,7 +51,7 @@ Chess-Engine/
     uci.*         UCI loop over an abstract line I/O (works on stdin or USB serial)
     platform.h    tiny shim: now_ms(), read_line(), write_line(), start_thread() — the ONLY per-target code
   pc/main.cpp     platform.h via stdio + std::thread
-  esp32/          PlatformIO project (framework = espidf). platform.h via USB-CDC + FreeRTOS tasks pinned per core
+  esp32/          PlatformIO project (framework = arduino, the config already proven on Kavin's board: USB-CDC on boot, qio_opi PSRAM; GCC 8.4 with -std=gnu++17). platform.h via USB-CDC + FreeRTOS tasks pinned per core
   tools/          lichess_to_text (C++, links core), uci_bridge.py (fastchess <-> USB serial), sprt.sh, gauntlet.sh
   train/          bullet trainer config (Rust crate, Metal backend)
   nets/           release nets only (committed). Work-in-progress nets go in nets/wip/ (gitignored)
@@ -128,7 +128,7 @@ Every unit is testable from the `pc` build.
 | # | Dates | Done when |
 |---|---|---|
 | M0 | Oct 6–19 | Repo builds for PC and ESP32. Perft suite exact on both. Device perft nps measured. `bench` works |
-| M1 | Oct 20–Nov 2 | UCI search + PeSTO eval. Passes a 1,000-game sanity gauntlet vs one engine of known rating (~2000 CCRL) with ≥40% score. SPRT harness works end to end |
+| M1 | Oct 20–Nov 2 | UCI search + PeSTO eval. Expected strength ~2200–2400 CCRL. Sanity gauntlet: 1,000 games vs one engine rated ~2000 CCRL; pass = estimate ≥2200 (≈76% score), and anything lower triggers a bug hunt before M2. SPRT harness works end to end. The M1 base features (null move, LMR, check extension) are validated by this gauntlet only, not SPRT |
 | M2 | Nov 3–30 | Converter + filtered dataset (≥200M positions). First NNUE beats PeSTO by SPRT on PC. Device build runs the small net |
 | M3 | Dec 1–21 (light) | ≥5 SPRT-tested search additions. PC rating estimate ≥2600 from a mini-gauntlet |
 | M4 | Dec 1–Jan 4 | Device: SIMD, TT tiering, dual-core decided by measurement. Node-emulated device gauntlet estimate ≥2250 |
@@ -143,7 +143,7 @@ Plan 1 covers M0 + M1. Later plans are written when we get there, because they d
 | Device stays below the 2210 bar | Publish the measured rating ± CI with honest wording. The PC result stands on its own |
 | Millennium King Performance is really stronger (retail "~2450", no stated method) | Compare only against documented measurements and say so explicitly |
 | CCRL doesn't test us by Jan 20 | Our own CCRL-anchored gauntlet is the deliverable; an official listing is a bonus |
-| USB-CDC/serial driver not working on the Mac | Checked at M0 task 1. Fallback: run gauntlets from lynxS |
+| USB-CDC/serial driver not working on the Mac | Plan 1, task 1 is a USB-CDC echo check on the real board. Fallback: run gauntlets from lynxS |
 | ESP32 watchdog or crash mid-game | Search task feeds or disables the task WDT; `stop` is honoured within 10 ms; crashes count as losses |
 | Lichess data filter yields less than expected | M2 measures the yield first. ≥100M positions is still enough for N ≤ 512 |
 | Exams squeeze December | M3/M4 already sized light; M6 holds 8 days of buffer |
@@ -156,4 +156,4 @@ Plan 1 covers M0 + M1. Later plans are written when we get there, because they d
 | Board | Bitboards + mailbox | Lose ~2x on 64-bit operations on a 32-bit MCU; gain proven speed on PC and shared code |
 | Training labels | Lichess Stockfish evals (Kavin's call) | Strength sooner and ₹0 compute; the net is distilled from Stockfish — disclosed |
 | Testing | fastchess locally + lynxS | No OpenBench server to run; fewer cores |
-| Build | Makefile (PC) + PlatformIO/ESP-IDF | No CMake; matches the OpenBench/CCRL `make EXE=` convention |
+| Build | Makefile (PC) + PlatformIO, Arduino framework (ESP32) | No CMake; matches the OpenBench/CCRL `make EXE=` convention. Arduino instead of raw ESP-IDF because its USB-CDC setup already works on this board; FreeRTOS tasks are still available |
