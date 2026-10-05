@@ -10,3 +10,7 @@ nets/wip/
 .deps/
 books/
 results/sprt/
+train/target/
+train/checkpoints/
+data/
+/engine-pesto
