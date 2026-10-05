@@ -109,7 +109,7 @@ Every unit is testable from the `pc` build.
 1. **Correctness:**
    - perft against the six standard chessprogramming.org positions (start, Kiwipete, positions 3–6): exact counts to depth 5 on PC and depth 4 on device.
    - Unit asserts for make/unmake round-trip (key and board restored) and FEN round-trip.
-2. **Determinism:** `bench` searches a fixed set of 50 positions to a fixed depth and prints the total node count. Every functional commit message carries `Bench: <n>`.
+2. **Determinism:** `bench` searches a fixed set of 32 positions (taken from the Lichess eval DB, stratified by piece count) to a fixed depth and prints the total node count. Every functional commit message carries `Bench: <n>`.
 3. **Strength of a change:** fastchess SPRT, pentanomial model `normalized`.
    - Gainers: `elo0=0 elo1=5`, alpha = beta = 0.05.
    - Simplifications: `elo0=-5 elo1=0`.

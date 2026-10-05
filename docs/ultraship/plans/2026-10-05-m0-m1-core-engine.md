@@ -32,7 +32,7 @@
 ## Task dependencies
 - Task 1 (ESP32 toolchain + USB echo) is independent; do it first.
 - Tasks 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 are strictly sequential (each builds on the previous files).
-- Task 10 (ESP32 engine port) needs Tasks 1 and 9.
+- Task 10 (ESP32 engine port) needs Tasks 1 and 9, plus Task 11 Steps 1 and 4 (venv + bridge) for its [DEVICE] steps.
 - Task 11 (test tooling) is independent of 2–10 and can run any time after Task 1.
 - Task 12 (SPRT self-check) needs 9 + 11. Task 13 (sanity gauntlet) needs 9 + 11. Task 14 (docs/wrap-up) is last.
 
@@ -117,7 +117,7 @@ void loop() {
 
 Run: `cd ~/Projects/Chess-Engine/esp32 && pio run -e s3`
 Expected: `[SUCCESS]`.
-If PlatformIO rejects `src_dir = ..`, apply the fallback and rebuild:
+If PlatformIO rejects `src_dir = ..`, apply the fallback, change `build_src_filter` to `+<*>`, and rebuild:
 - set `src_dir = main`
 - `mkdir main && git mv main.cpp main/main.cpp`
 - for Task 10, add `lib_extra_dirs`-free symlink `esp32/main/core -> ../../src`
@@ -1986,6 +1986,9 @@ void search_worker(void*) {
     write_line("bestmove " + move_to_uci(r.best));
 }
 
+int g_bench_depth = BENCH_DEPTH;
+void bench_worker(void*) { run_bench(g_bench_depth); }  // worker thread: the ESP32 loop task has only ~8 KB of stack
+
 void set_position(std::istringstream& ss) {
     std::string token, fen;
     ss >> token;
@@ -2049,6 +2052,7 @@ void set_option(std::istringstream& ss) {
     while (ss >> t && t != "value") name += (name.empty() ? "" : " ") + t;
     ss >> value;
     if (name == "Hash") {
+        if (TT_FAST) { write_line("info string Hash is fixed on this device"); return; }  // SRAM table, not MB-sized
         long mb = std::clamp(std::strtol(value.c_str(), nullptr, 10), 1L, 4096L);
         if (!g_tt.resize(size_t(mb) << 20, TT_FAST)) {
             write_line("info string hash allocation failed, using default size");
@@ -2082,7 +2086,7 @@ bool uci_command(const std::string& raw) {
     if (cmd == "uci") {
         write_line("id name " ENGINE_NAME);
         write_line("id author Kavin Jain");
-        write_line("option name Hash type spin default " + std::to_string(TT_DEFAULT_BYTES >> 20) + " min 1 max 4096");
+        write_line("option name Hash type spin default " + std::to_string(std::max(1u, unsigned(TT_DEFAULT_BYTES >> 20))) + " min 1 max 4096");
         write_line("uciok");
     } else if (cmd == "isready") write_line("readyok");
     else if (cmd == "ucinewgame") { stop_search(); clear_search_state(); }
@@ -2090,7 +2094,7 @@ bool uci_command(const std::string& raw) {
     else if (cmd == "go") { stop_search(); start_go(ss); }
     else if (cmd == "stop") stop_search();
     else if (cmd == "setoption") { stop_search(); set_option(ss); }
-    else if (cmd == "bench") { stop_search(); int d = 0; ss >> d; run_bench(d > 0 ? d : BENCH_DEPTH); }
+    else if (cmd == "bench") { stop_search(); int d = 0; ss >> d; g_bench_depth = d > 0 ? d : BENCH_DEPTH; start_worker(bench_worker, nullptr); }
     else if (cmd == "d") write_line(g_board.fen());
     else if (cmd == "quit") { stop_search(); return false; }
     else if (!cmd.empty()) write_line("info string unknown command: " + cmd);
@@ -2228,7 +2232,10 @@ void start_worker(void (*fn)(void*), void* arg) {
     join_worker();
     worker_fn = fn;
     worker_arg = arg;
-    xTaskCreatePinnedToCore(worker_entry, "search", 72 * 1024, nullptr, 1, &worker_task, 0);
+    if (xTaskCreatePinnedToCore(worker_entry, "search", 72 * 1024, nullptr, 1, &worker_task, 0) != pdPASS) {
+        worker_task = nullptr;
+        write_line("info string ERROR: cannot create 72 KB search task (internal RAM)");
+    }
 }
 
 void join_worker() {
@@ -2247,6 +2254,7 @@ void setup() {
     engine_init();
     write_line("info string ready init_ms " + std::to_string(now_ms() - t0) +
                " free_internal " + std::to_string(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)) +
+               " largest_internal " + std::to_string(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL)) +
                " free_psram " + std::to_string(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)));
 }
 
@@ -2262,7 +2270,7 @@ If `-std=gnu++17` is not applied (errors about `std::clamp` or structured bindin
 Run: `pio run -e s3 -t upload && sleep 2 && ../.venv/bin/python -c "import serial,time; s=serial.Serial('$(ls /dev/cu.usbmodem* | head -1)',115200,timeout=10); s.write(b'isready\n'); print(s.read_until(b'readyok'))"`
 Expected: `readyok`. The boot line may have printed before we connected. If so, send `uci` and confirm `uciok`.
 Then reset the board (button) with the port open, so the `info string ready init_ms … free_internal … free_psram …` line is captured. Record those numbers.
-If `free_internal` < 20000 or TT allocation failed, set `-DTT_DEFAULT_BYTES=65536` and repeat.
+If `largest_internal` < 81920 (the 72 KB search stack plus margin) or TT allocation failed, set `-DTT_DEFAULT_BYTES=65536` and repeat. Any `ERROR: cannot create … search task` line means the same.
 
 - [ ] **Step 5 [DEVICE]: Device perft suite (depth 4, exact counts).** Uses the bridge from Task 11 Step 4. Do that step first if it hasn't been done yet.
 Run (each position; this example is Kiwipete):
@@ -2273,6 +2281,7 @@ PORT=$(ls /dev/cu.usbmodem* | head -1)
 ```
 Expected node counts (same as the PC test): start 197281 · Kiwipete 4085603 · pos3 43238 · pos4 422333 · pos5 2103487 · pos6 3894594.
 Record each `nps` figure. **M0 device gate: every count exact. Compare the nps against CST Retro's 418 knps.**
+Also measure stop latency: `go infinite`, wait 2 s, send `stop`, and time how long `bestmove` takes to arrive. Spec target: ≤ 10 ms beyond USB latency.
 
 - [ ] **Step 6 [DEVICE]: Device bench and a timed search.**
 Run: `(echo "bench"; sleep 120; echo quit) | ../.venv/bin/python ../tools/uci_bridge.py "$PORT"`
@@ -2548,6 +2557,8 @@ git add README.md LICENSE docs/explain-it-back && git commit -m "Docs: README wi
 ```
 
 ---
+
+> **Placeholders:** every `<…>` in this plan (versions, hashes, measured numbers) is filled with the real value at execution time. Never commit a literal `<…>`.
 
 ## Done-when for this plan (= spec M0 + M1)
 - [ ] `make test` passes: perft suite exact, make/unmake/key invariants, eval symmetry, mate-in-1/2, TT, UCI parsing.
