@@ -15,6 +15,7 @@ struct ChessBoardRecord {
 static_assert(sizeof(ChessBoardRecord) == 32, "bulletformat ChessBoard is 32 bytes");
 
 // score_white: centipawns from White's view. result_white: 0 = Black won, 1 = draw, 2 = White won.
+// Precondition: at most 32 pieces (classify() rejects more).
 inline ChessBoardRecord make_record(const Board& b, int score_white, int result_white) {
     ChessBoardRecord r{};
     const bool flip = b.stm == BLACK;

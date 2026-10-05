@@ -48,6 +48,7 @@ inline Verdict classify(const EvalLine& e, Board& b) {
     if (e.depth < MIN_DEPTH) return TOO_SHALLOW;
     if (e.cp > MAX_ABS_CP || e.cp < -MAX_ABS_CP) return TOO_BIG;
     if (!b.set_fen(e.fen)) return BAD_FEN;
+    if (popcount(b.occ) > 32) return BAD_FEN;  // analysis-board setups; a ChessBoard record holds at most 32 pieces
     if (b.in_check()) return IN_CHECK;
     const std::string& m = e.first_move;
     if (m.size() < 4 || m[0] < 'a' || m[0] > 'h' || m[2] < 'a' || m[2] > 'h' ||

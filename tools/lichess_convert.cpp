@@ -4,7 +4,6 @@
 //   lichess_convert text MAX < jsonl       "FEN | cp | 0.5" lines for kept positions (bullet-utils cross-check)
 //   lichess_convert binary OUT MAX < jsonl same positions as `text`, as records in one file
 #include <cstdio>
-#include <iostream>
 #include <random>
 #include <string>
 #include <vector>
@@ -12,6 +11,17 @@
 #include "lichess_parse.h"
 
 static Board B;
+
+// Fast line reader: libc++'s std::getline(std::cin) locks once per character (profiled: >50% of runtime).
+static bool next_line(std::string& line) {
+    static char* buf = nullptr;
+    static size_t cap = 0;
+    ssize_t n = ::getline(&buf, &cap, stdin);
+    if (n < 0) return false;
+    if (n > 0 && buf[n - 1] == '\n') --n;
+    line.assign(buf, size_t(n));
+    return true;
+}
 static const char* VERDICT_NAMES[VERDICT_COUNT] = {"keep", "bad_fen", "bad_move", "mate", "too_shallow", "too_big", "in_check", "noisy"};
 
 static void report(uint64_t lines, const uint64_t* counts) {
@@ -34,7 +44,7 @@ static int convert(const std::string& dir, uint64_t max_positions) {
     uint64_t counts[VERDICT_COUNT] = {}, lines = 0, kept = 0;
     std::string line;
     EvalLine e;
-    while (kept < max_positions && std::getline(std::cin, line)) {
+    while (kept < max_positions && next_line(line)) {
         ++lines;
         Verdict v = parse_eval_line(line, e) ? classify(e, B) : BAD_FEN;
         ++counts[v];
@@ -76,7 +86,7 @@ static int sample(bool as_text, const char* out_path, uint64_t max_positions) {
     std::string line;
     EvalLine e;
     uint64_t kept = 0;
-    while (kept < max_positions && std::getline(std::cin, line)) {
+    while (kept < max_positions && next_line(line)) {
         if (!parse_eval_line(line, e) || classify(e, B) != KEEP) continue;
         if (as_text) std::fprintf(out, "%s | %d | 0.5\n", B.fen().c_str(), e.cp);
         else { ChessBoardRecord r = make_record(B, e.cp, 1); std::fwrite(&r, sizeof r, 1, out); }
@@ -89,7 +99,6 @@ static int sample(bool as_text, const char* out_path, uint64_t max_positions) {
 int main(int argc, char** argv) {
     init_bitboards();
     Board::init();
-    std::ios::sync_with_stdio(false);
     const std::string cmd = argc > 1 ? argv[1] : "";
     if (cmd == "convert" && argc == 4) return convert(argv[2], std::stoull(argv[3]));
     if (cmd == "shuffle" && argc >= 3) { for (int i = 2; i < argc; ++i) if (shuffle(argv[i])) return 1; return 0; }

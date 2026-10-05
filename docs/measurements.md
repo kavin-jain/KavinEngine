@@ -13,3 +13,5 @@ Numbers that later plans depend on. Every entry: date, command, result.
 ## 2026-10-06 — M2
 - Download speed from database.lichess.org: 11.8 MB/s (200 MB range request) → ~32 min for the 22.4 GB eval DB.
 - Converter on the first 60 MB (678,229 lines): keep 352,503 (52.0%); mate 125,006 (18.4%); noisy 103,207 (15.2%); too_shallow (<20) 62,611 (9.2%); in_check 29,294 (4.3%); too_big (>3000 cp) 5,607 (0.8%); bad_fen 1 (the truncated last line).
+- Converter speed: 324K lines/s on one P-core after replacing `std::getline(std::cin)` with POSIX `getline()` (libc++ cin locked per character; profiled at >50% of runtime; was ~20K lines/s). Output byte-identical before and after.
+- **Converter byte-identical to `bullet-utils convert --from text` on 100,000 positions** (bullet rev 6b2d278). The check found one real Lichess analysis position with 33 pieces, which would have overflowed the record's 32-piece array; `classify()` now rejects >32 pieces.

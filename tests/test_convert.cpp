@@ -54,4 +54,6 @@ TEST(classify_filters) {
     e.fen = "4k3/8/8/8/8/8/8/R3K2R w KQ -";  e.first_move = "e1h1";   CHECK(classify(e, B) == KEEP);   // chess960 castle
     e.fen = "4k3/8/8/8/8/8/8/4K2r w - -";    e.first_move = "e1d2";   CHECK(classify(e, B) == IN_CHECK);
     e.fen = "garbage";                                                CHECK(classify(e, B) == BAD_FEN);
+    e.fen = "rnbqk1nr/1pp2ppp/pbnp4/3Pp3/B3P3/2P2N2/PP3PPP/RNBQKBNR b KQkq -"; e.first_move = "a6a5";
+    CHECK(classify(e, B) == BAD_FEN);  // 33 pieces (real Lichess line): would overflow the 16-byte pcs array
 }
