@@ -18,3 +18,8 @@ cc -O3 -w -o bbc bbc_1.1_macos.c
 Rules:
 - A change merges only on SPRT H1.
 - Never compare Elo across separate runs (thermal state differs).
+
+## Harness self-check (2026-10-05)
+`tools/sprt.sh ./engine ./engine-material 0 10`: PeSTO eval vs a material-only build of the same engine.
+- Games 152: W 148 / D 3 / L 1 (98.36%). Pentanomial [0, 0, 1, 3, 72]. LLR 2.98 (-2.94, 2.94) → **H1 accepted** in 14 min 53 s.
+- No time losses or crashes in the log. The harness detects a real gain end to end.
