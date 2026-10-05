@@ -205,3 +205,41 @@ void Board::trim_history() {
     std::memmove(history, history + (game_ply - keep), size_t(keep) * sizeof(StateInfo));
     game_ply = keep;
 }
+
+void Board::make_null() {
+    StateInfo& st = history[game_ply];
+    st.key = key; st.castling = castling; st.ep = ep; st.halfmove = halfmove; st.captured = NO_PIECE;
+    key ^= SideKey;
+    if (ep != NO_SQ) { key ^= EpKeys[file_of(ep)]; ep = NO_SQ; }
+    halfmove = 0;  // repetition checks must not look back across a null move
+    stm = ~stm;
+    ++game_ply;
+}
+
+void Board::unmake_null() {
+    --game_ply;
+    const StateInfo& st = history[game_ply];
+    stm = ~stm;
+    key = st.key; castling = st.castling; ep = st.ep; halfmove = st.halfmove;
+}
+
+bool Board::is_repetition() const {
+    // history[i].key is the position at ply i; same side to move every 2 plies; nothing repeats across an irreversible move.
+    const int stop = game_ply - std::min(halfmove, game_ply);
+    for (int i = game_ply - 4; i >= stop; i -= 2)
+        if (history[i].key == key) return true;
+    return false;
+}
+
+bool Board::is_draw() const {
+    if (halfmove >= 100 || is_repetition()) return true;
+    const Bitboard heavy = pieces[make_piece(WHITE, PAWN)] | pieces[make_piece(BLACK, PAWN)]
+                         | pieces[make_piece(WHITE, ROOK)] | pieces[make_piece(BLACK, ROOK)]
+                         | pieces[make_piece(WHITE, QUEEN)] | pieces[make_piece(BLACK, QUEEN)];
+    return !heavy && popcount(occ) <= 3;  // K v K or K + minor v K
+}
+
+bool Board::has_non_pawn_material(Color c) const {
+    const Bitboard* p = pieces + int(c) * 6;
+    return (p[KNIGHT] | p[BISHOP] | p[ROOK] | p[QUEEN]) != 0;
+}
