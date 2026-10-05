@@ -7,3 +7,5 @@ Numbers that later plans depend on. Every entry: date, command, result.
 - USB echo: deferred (board not connected; `pio device list` shows no `/dev/cu.usbmodem*`).
 - PC bench (depth 11, 32 positions): **17440859 nodes**, ~8.1–8.5 M nps single-thread, 2.3 s (MacBook Air M3, 2026-10-05). Deterministic across runs. Depth 9 was 0.7 s, too shallow for a useful signature.
 - PC search speed: ~7.1–7.7 M nps from startpos; depth 15 reached in 0.9 s under `go wtime 10000 winc 100`.
+- ESP32 engine build (2026-10-05): static RAM 86,644 / 327,680 B, flash 543 KB. `MAX_GAME_PLY=256` on device: the first build with 1,024 entries used 141,940 B static, which would have starved the 128 KB TT + 72 KB search stack.
+- ESP32 device perft / nps / boot heap / stop latency: **deferred** (board not connected).

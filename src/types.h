@@ -9,7 +9,9 @@ using Move = uint16_t;
 #define MAX_PLY 128
 #endif
 constexpr int MAX_MOVES = 256;
-constexpr int MAX_GAME_PLY = 1024;
+#ifndef MAX_GAME_PLY
+#define MAX_GAME_PLY 1024  // history entries per Board; UCI trims older plies (repetition needs <= 100 back)
+#endif
 
 enum Color : int { WHITE = 0, BLACK = 1 };
 inline Color operator~(Color c) { return Color(c ^ 1); }

@@ -174,7 +174,9 @@ using Move = uint16_t;
 #define MAX_PLY 128
 #endif
 constexpr int MAX_MOVES = 256;
-constexpr int MAX_GAME_PLY = 1024;
+#ifndef MAX_GAME_PLY
+#define MAX_GAME_PLY 1024  // history entries per Board; UCI trims older plies (repetition needs <= 100 back)
+#endif
 
 enum Color : int { WHITE = 0, BLACK = 1 };
 inline Color operator~(Color c) { return Color(c ^ 1); }
@@ -1900,7 +1902,7 @@ Expected: compile error (`uci.h` not found).
 #define TT_FAST 0
 #endif
 #ifndef BENCH_DEPTH
-#define BENCH_DEPTH 9
+#define BENCH_DEPTH 11  // measured: 2.3 s on the M3 (depth 9 = 0.7 s)
 #endif
 #ifndef ENGINE_NAME
 #define ENGINE_NAME "Chess-Engine 0.1"
@@ -2176,6 +2178,7 @@ Bench: <N>"
 - Append these lines to `build_flags`:
 ```ini
     -DMAX_PLY=48
+    -DMAX_GAME_PLY=256
     -DTT_DEFAULT_BYTES=131072
     -DTT_FAST=1
     -DBENCH_DEPTH=6
