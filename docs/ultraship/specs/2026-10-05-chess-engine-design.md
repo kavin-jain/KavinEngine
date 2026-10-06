@@ -157,3 +157,4 @@ Plan 1 covers M0 + M1. Later plans are written when we get there, because they d
 | Training labels | Lichess Stockfish evals (Kavin's call) | Strength sooner and ₹0 compute; the net is distilled from Stockfish — disclosed |
 | Testing | fastchess locally + lynxS | No OpenBench server to run; fewer cores |
 | Build | Makefile (PC) + PlatformIO, Arduino framework (ESP32) | No CMake; matches the OpenBench/CCRL `make EXE=` convention. Arduino instead of raw ESP-IDF because its USB-CDC setup already works on this board; FreeRTOS tasks are still available |
+| LTC testing (amended 2026-10-06) | STC [0, 5] per feature + one LTC [0, 10] bundle check per milestone, replacing per-feature LTC (§7.3) | Per-feature LTC would cost 1–3 days each on lynxS (≈ 1/3 of the Mac's nps); features that only fail at LTC are caught per bundle, not per feature. Decided by Claude under delegation; flagged to Kavin |

@@ -23,3 +23,9 @@ Rules:
 `tools/sprt.sh ./engine ./engine-material 0 10`: PeSTO eval vs a material-only build of the same engine.
 - Games 152: W 148 / D 3 / L 1 (98.36%). Pentanomial [0, 0, 1, 3, 72]. LLR 2.98 (-2.94, 2.94) → **H1 accepted** in 14 min 53 s.
 - No time losses or crashes in the log. The harness detects a real gain end to end.
+
+## SPRT on lynxS (from M3)
+lynxS: Intel i3-7020U (2 cores / 4 threads, 2.3 GHz, AVX2), Debian 13, fastchess built from the same commit (`alpha 1.8.2 20261004-a281caf`), book SHA-256 verified identical. Concurrency 2 (one game per physical core). Matches run in `tmux`.
+- Bench node counts are identical to the Mac (NNUE 13350441, PeSTO 17440859).
+- nps (bench, single thread): lynxS NNUE 2.12 M, PeSTO 2.95 M. Mac M3 cool PeSTO 8.3 M (M0 figure; the Mac was loaded by other work on 2026-10-06, so no clean NNUE figure yet).
+- **STC on lynxS = 20+0.2** (R ≈ 2.5 from the PeSTO ratio 2.8, discounted for the dirty-piece bookkeeping added since M0). This is an estimate: re-measure R on an idle Mac. If it differs by > 20 %, later SPRTs switch TC, and each log row records its TC.
