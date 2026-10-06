@@ -75,3 +75,42 @@ uint64_t perft(Board& b, int depth) {
     }
     return n;
 }
+
+namespace { const int SEE_VALUE[6] = {100, 300, 300, 500, 900, 0}; }
+
+bool see_ge(const Board& b, Move m, int threshold) {
+    const int fl = flags_of(m);
+    if (fl != QUIET && fl != DOUBLE_PUSH && fl != CAPTURE) return 0 >= threshold;
+    const int from = from_sq(m), to = to_sq(m);
+    int swap = (fl == CAPTURE ? SEE_VALUE[type_of(b.mailbox[to])] : 0) - threshold;
+    if (swap < 0) return false;  // even keeping the victim free is not enough
+    swap = SEE_VALUE[type_of(b.mailbox[from])] - swap;
+    if (swap <= 0) return true;  // even losing the mover keeps us at the threshold
+    Bitboard occ = b.occ ^ bb(from) ^ bb(to);
+    const Bitboard bishops = b.pieces[make_piece(WHITE, BISHOP)] | b.pieces[make_piece(BLACK, BISHOP)]
+                           | b.pieces[make_piece(WHITE, QUEEN)] | b.pieces[make_piece(BLACK, QUEEN)];
+    const Bitboard rooks = b.pieces[make_piece(WHITE, ROOK)] | b.pieces[make_piece(BLACK, ROOK)]
+                         | b.pieces[make_piece(WHITE, QUEEN)] | b.pieces[make_piece(BLACK, QUEEN)];
+    Bitboard attackers = (PawnAttacks[BLACK][to] & b.pieces[make_piece(WHITE, PAWN)])
+                       | (PawnAttacks[WHITE][to] & b.pieces[make_piece(BLACK, PAWN)])
+                       | (KnightAttacks[to] & (b.pieces[make_piece(WHITE, KNIGHT)] | b.pieces[make_piece(BLACK, KNIGHT)]))
+                       | (KingAttacks[to] & (b.pieces[make_piece(WHITE, KING)] | b.pieces[make_piece(BLACK, KING)]))
+                       | (bishop_attacks(to, occ) & bishops) | (rook_attacks(to, occ) & rooks);
+    Color stm = b.stm;
+    int res = 1;  // 1 = the side that made move m is winning the exchange so far
+    for (;;) {
+        stm = ~stm;
+        attackers &= occ;
+        const Bitboard mine = attackers & b.colors[stm];
+        if (!mine) break;
+        res ^= 1;
+        int pt = PAWN;
+        while (!(mine & b.pieces[make_piece(stm, PieceType(pt))])) ++pt;
+        if (pt == KING) return (attackers & b.colors[~stm]) ? res ^ 1 : res;  // king may only take an undefended piece
+        if ((swap = SEE_VALUE[pt] - swap) < res) break;
+        occ ^= bb(lsb(mine & b.pieces[make_piece(stm, PieceType(pt))]));
+        if (pt == PAWN || pt == BISHOP || pt == QUEEN) attackers |= bishop_attacks(to, occ) & bishops;
+        if (pt == ROOK || pt == QUEEN) attackers |= rook_attacks(to, occ) & rooks;
+    }
+    return res;
+}

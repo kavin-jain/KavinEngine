@@ -55,3 +55,35 @@ TEST(captures_only_generation) {
     }
     CHECK_EQ(legal, 8);  // Kiwipete depth-1 captures per chessprogramming.org Perft Results
 }
+
+TEST(see_pawn_takes_free_pawn) {
+    Board b; CHECK(b.set_fen("4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1"));
+    const Move m = make_move(28, 35, CAPTURE);  // exd5
+    CHECK(see_ge(b, m, 100));
+    CHECK(!see_ge(b, m, 101));
+}
+TEST(see_queen_takes_defended_pawn) {
+    Board b; CHECK(b.set_fen("4k3/8/2p5/3p4/8/8/8/3QK3 w - - 0 1"));
+    const Move m = make_move(3, 35, CAPTURE);   // Qxd5, cxd5
+    CHECK(see_ge(b, m, -800));
+    CHECK(!see_ge(b, m, -799));
+    CHECK(!see_ge(b, m, 0));
+}
+TEST(see_xray_rook_battery) {
+    Board b; CHECK(b.set_fen("3r3k/3r4/8/8/8/8/3R4/3R3K w - - 0 1"));
+    const Move m = make_move(11, 51, CAPTURE);  // Rxd7 Rxd7 Rxd7: the d1 rook joins through d2
+    CHECK(see_ge(b, m, 500));
+    CHECK(!see_ge(b, m, 501));
+}
+TEST(see_xray_added_after_capture) {  // fails if the x-ray update lines are missing (-200 instead of -100)
+    Board b; CHECK(b.set_fen("3rk3/8/4p3/3p4/8/2N5/3R4/3R2K1 w - - 0 1"));
+    const Move m = make_move(18, 35, CAPTURE);  // Nxd5
+    CHECK(see_ge(b, m, -100));
+    CHECK(!see_ge(b, m, -99));
+}
+TEST(see_special_moves_count_as_zero) {
+    Board b; CHECK(b.set_fen("4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1"));
+    const Move ep = make_move(36, 43, EP_CAPTURE);
+    CHECK(see_ge(b, ep, 0));
+    CHECK(!see_ge(b, ep, 1));
+}
