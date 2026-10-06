@@ -28,6 +28,7 @@ struct Searcher {
     int pv_len[MAX_PLY];
     uint8_t lmr[64][64];
     Accumulator acc[MAX_PLY + 1];  // acc[ply] matches the board at that ply
+    int eval_stack[MAX_PLY + 1];   // static eval per ply (-INF when in check)
 };
 Searcher S;  // static storage: these arrays must not live on the small ESP32 task stack
 
@@ -131,9 +132,12 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
             return s;
     }
 
+    const int static_eval = in_check ? -INF : eval_at(ply);
+    S.eval_stack[ply] = static_eval;
+
     // Null-move pruning: if passing still fails high, this node is very likely a cut-node.
     if (!pv_node && !in_check && null_ok && depth >= 3 && S.board.has_non_pawn_material(S.board.stm)
-        && eval_at(ply) >= beta) {
+        && static_eval >= beta) {
         S.board.make_null();
         S.acc[ply + 1] = S.acc[ply];
         int s = -negamax(-beta, -beta + 1, depth - 1 - (3 + depth / 6), ply + 1, false);
