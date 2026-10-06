@@ -6,6 +6,7 @@
 #include <string>
 #include "eval.h"
 #include "movegen.h"
+#include "nnue.h"
 #include "platform.h"
 
 TT g_tt;
@@ -26,8 +27,14 @@ struct Searcher {
     Move pv[MAX_PLY][MAX_PLY];
     int pv_len[MAX_PLY];
     uint8_t lmr[64][64];
+    Accumulator acc[MAX_PLY + 1];  // acc[ply] matches the board at that ply
 };
 Searcher S;  // static storage: these arrays must not live on the small ESP32 task stack
+
+int eval_at(int ply) {
+    const int e = nnue_ready() ? nnue_evaluate(S.acc[ply], S.board.stm) : evaluate(S.board);
+    return std::clamp(e, -MATE_BOUND + 1, MATE_BOUND - 1);
+}
 
 bool should_stop() {
     if (S.stopped) return true;
@@ -70,11 +77,11 @@ int qsearch(int alpha, int beta, int ply) {
     ++S.nodes;
     if (should_stop()) return 0;
     if (ply > S.seldepth) S.seldepth = ply;
-    if (ply >= MAX_PLY - 1) return evaluate(S.board);
+    if (ply >= MAX_PLY - 1) return eval_at(ply);
     const bool in_check = S.board.in_check();
     int best = -INF;
     if (!in_check) {  // stand pat
-        best = evaluate(S.board);
+        best = eval_at(ply);
         if (best >= beta) return best;
         if (best > alpha) alpha = best;
     }
@@ -86,6 +93,7 @@ int qsearch(int alpha, int beta, int ply) {
     for (int i = 0; i < list.size; ++i) {
         Move m = pick(list, scores, i);
         if (!S.board.make(m)) continue;
+        if (nnue_ready()) nnue_update(S.acc[ply], S.acc[ply + 1], S.board);
         ++legal;
         int score = -qsearch(-beta, -alpha, ply + 1);
         S.board.unmake(m);
@@ -104,7 +112,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
     S.pv_len[ply] = ply;
     if (ply > 0) {
         if (S.board.is_draw()) return 0;
-        if (ply >= MAX_PLY - 1) return evaluate(S.board);
+        if (ply >= MAX_PLY - 1) return eval_at(ply);
     }
     const bool in_check = S.board.in_check();
     if (in_check) ++depth;  // check extension
@@ -125,8 +133,9 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
 
     // Null-move pruning: if passing still fails high, this node is very likely a cut-node.
     if (!pv_node && !in_check && null_ok && depth >= 3 && S.board.has_non_pawn_material(S.board.stm)
-        && evaluate(S.board) >= beta) {
+        && eval_at(ply) >= beta) {
         S.board.make_null();
+        S.acc[ply + 1] = S.acc[ply];
         int s = -negamax(-beta, -beta + 1, depth - 1 - (3 + depth / 6), ply + 1, false);
         S.board.unmake_null();
         if (S.stopped) return 0;
@@ -144,6 +153,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
     for (int i = 0; i < list.size; ++i) {
         const Move m = pick(list, scores, i);
         if (!S.board.make(m)) continue;
+        if (nnue_ready()) nnue_update(S.acc[ply], S.acc[ply + 1], S.board);
         ++legal;
         const bool quiet = !is_capture(m) && !is_promo(m);
         const int new_depth = depth - 1;
@@ -225,6 +235,7 @@ void clear_search_state() {
 
 SearchResult search(const Board& root, const Limits& limits, bool verbose) {
     S.board = root;
+    if (nnue_ready()) nnue_refresh(S.board, S.acc[0]);
     S.limits = limits;
     S.start = now_ms();
     S.budget = compute_budget(limits, root.stm);

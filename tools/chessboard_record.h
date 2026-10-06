@@ -37,3 +37,14 @@ inline ChessBoardRecord make_record(const Board& b, int score_white, int result_
     r.result = uint8_t(flip ? 2 - result_white : result_white);
     return r;
 }
+
+// Inverse of make_record's pieces: the position seen from the side to move, which plays White.
+inline void record_pieces(const ChessBoardRecord& r, Bitboard pieces[12]) {
+    for (int pc = 0; pc < 12; ++pc) pieces[pc] = 0;
+    int idx = 0;
+    for (Bitboard occ = r.occ; occ; ++idx) {
+        const int sq = pop_lsb(occ);
+        const int nib = (r.pcs[idx / 2] >> (4 * (idx & 1))) & 15;
+        pieces[make_piece(nib & 8 ? BLACK : WHITE, PieceType(nib & 7))] |= 1ull << sq;
+    }
+}

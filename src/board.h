@@ -16,6 +16,10 @@ public:
     Key key;
     int game_ply;                       // number of entries used in history
     StateInfo history[MAX_GAME_PLY];    // ~24 KB: keep Boards in static storage on ESP32
+    struct DirtyPiece { int8_t pc, sq; bool add; };
+    DirtyPiece dirty[6];                // piece changes of the last make(), consumed by NNUE updates
+    int dirty_n = 0;
+    bool track_dirty = false;
 
     static void init();                 // Zobrist keys; call once after init_bitboards()
     // Parses a FEN (move counters optional). On false the board is unspecified: reset it.

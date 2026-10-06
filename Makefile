@@ -39,4 +39,9 @@ convert: tools/lichess_convert.cpp tools/chessboard_record.h tools/lichess_parse
 	@mkdir -p build
 	$(CXX) -std=c++17 -O3 -Wall -Wextra $(NATIVE) -o build/lichess_convert tools/lichess_convert.cpp $(CORE_SRC)
 
-.PHONY: pesto material test convert
+# Held-out loss of a quantised net (net loaded at run time, so any checkpoint works).
+loss: tools/nnue_loss.cpp tools/chessboard_record.h src/nnue.cpp $(HDR)
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) -o build/nnue_loss_$(NNUE_HIDDEN) tools/nnue_loss.cpp src/nnue.cpp
+
+.PHONY: pesto material test convert loss

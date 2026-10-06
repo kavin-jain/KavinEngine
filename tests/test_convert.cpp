@@ -26,6 +26,17 @@ TEST(record_black_to_move_is_flipped) {
     CHECK(r.occ & (1ull << 36));   // white pawn e4 (28) -> relative 28 ^ 56 = 36
 }
 
+TEST(record_pieces_round_trip) {
+    CHECK(B.set_fen("r1bq1rk1/pp2bppp/2n1pn2/3p4/2PP4/2N1PN2/PP3PPP/R2QKB1R b KQ - 3 8"));
+    Bitboard got[12];
+    record_pieces(make_record(B, 0, 1), got);
+    for (int pc = 0; pc < 12; ++pc) {  // black to move: colours swap and ranks mirror
+        Bitboard want = 0;
+        for (Bitboard x = B.pieces[pc]; x;) want |= 1ull << (pop_lsb(x) ^ 56);
+        CHECK(got[make_piece(~color_of(pc), type_of(pc))] == want);
+    }
+}
+
 TEST(parse_lichess_line_picks_deepest_eval) {
     const std::string line =
         R"({"fen":"8/4r3/2R2pk1/6pp/3P4/6P1/5K1P/8 b - -","evals":[{"pvs":[{"cp":10,"line":"e7a7 f2e3"}],"knodes":5,"depth":30},)"

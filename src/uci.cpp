@@ -4,6 +4,7 @@
 #include <sstream>
 #include "eval.h"
 #include "movegen.h"
+#include "nnue.h"
 #include "platform.h"
 
 // 32 positions taken in file order from the Lichess CC0 eval database (2026-10-05), 8 per piece-count band
@@ -149,6 +150,13 @@ void engine_init() {
     Board::init();
     eval_init();
     search_init();
+#ifndef USE_PESTO
+    if (!nnue_load(NNUE_DATA, NNUE_DATA_SIZE)) {  // a misbuilt engine must not play: fail loudly
+        write_line("info string FATAL: NNUE size " + std::to_string(NNUE_DATA_SIZE) + " expected " +
+                   std::to_string(nnue_expected_size()) + " (EVALFILE and NNUE_HIDDEN disagree), or weights outside the int16 range");
+        std::abort();
+    }
+#endif
     if (!g_tt.resize(TT_DEFAULT_BYTES, TT_FAST)) write_line("info string TT allocation failed");
     g_board.set_fen(START_FEN);
 }

@@ -26,10 +26,12 @@ void Board::init() {
 void Board::put(int pc, int sq) {
     pieces[pc] |= bb(sq); colors[color_of(pc)] |= bb(sq); occ |= bb(sq);
     mailbox[sq] = pc; key ^= PieceKeys[pc][sq];
+    if (track_dirty) dirty[dirty_n++] = {int8_t(pc), int8_t(sq), true};
 }
 
 void Board::remove(int sq) {
     int pc = mailbox[sq];
+    if (track_dirty) dirty[dirty_n++] = {int8_t(pc), int8_t(sq), false};
     pieces[pc] &= ~bb(sq); colors[color_of(pc)] &= ~bb(sq); occ &= ~bb(sq);
     mailbox[sq] = NO_PIECE; key ^= PieceKeys[pc][sq];
 }
@@ -154,6 +156,8 @@ bool Board::make(Move m) {
     const int from = from_sq(m), to = to_sq(m), flags = flags_of(m);
     const Color us = stm;
     const int pc = mailbox[from];
+    dirty_n = 0;
+    track_dirty = true;
 
     key ^= SideKey;
     if (ep != NO_SQ) { key ^= EpKeys[file_of(ep)]; ep = NO_SQ; }
@@ -180,6 +184,7 @@ bool Board::make(Move m) {
     stm = ~us;
     if (us == BLACK) ++fullmove;
     ++game_ply;
+    track_dirty = false;
     if (attacked(king_sq(us), stm)) { unmake(m); return false; }
     return true;
 }
