@@ -9,7 +9,7 @@ mkdir -p results/sprt
   -engine cmd="$NEW" name=new -engine cmd="$BASE" name=base \
   -each tc="$TC" option.Hash=16 \
   -openings file=books/UHO_Lichess_4852_v1.epd format=epd order=random \
-  -rounds 30000 -repeat -concurrency "${CONCURRENCY:-4}" \
+  -rounds "${ROUNDS:-30000}" -repeat -concurrency "${CONCURRENCY:-4}" \
   -sprt elo0="$ELO0" elo1="$ELO1" alpha=0.05 beta=0.05 model=normalized \
   -report penta=true -recover \
-  -pgnout file="results/sprt/$(date +%Y-%m-%d_%H%M%S).pgn"
+  -pgnout file="results/sprt/${SPRT_ID:-$(date +%Y-%m-%d_%H%M%S)}.pgn"

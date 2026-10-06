@@ -9,7 +9,7 @@ nets/wip/
 .venv/
 .deps/
 books/
-results/sprt/
+results/sprt/*.pgn
 train/target/
 train/checkpoints/
 data/
