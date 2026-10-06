@@ -8,7 +8,7 @@ A from-scratch UCI chess engine in C++17 that runs on a PC and on a ~$10 ESP32-S
 - PeSTO evaluation as a bootstrap; a trained NNUE network replaces it in M2.
 - ~8 M nodes/s single-threaded on an Apple M3. Bench signature: `17440859` nodes (`./engine bench`, depth 11).
 - ESP32-S3 build compiles; on-device verification is pending.
-- Strength so far: see `docs/measurements.md`. Ratings appear only with the games behind them.
+- Strength so far: 87.6 % over 1,000 games vs BBC 1.1 (CCRL Blitz 2020) → **~2359 ± 30** estimate. That is a one-opponent sanity check, not a CCRL rating. Games are in `results/`, method and caveats in `docs/measurements.md`.
 
 ## Build and run
 | Target | Command |

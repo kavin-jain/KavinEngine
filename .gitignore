@@ -14,3 +14,4 @@ train/target/
 train/checkpoints/
 data/
 /engine-pesto
+/config.json
