@@ -1,0 +1,7 @@
+[package]
+name = "train"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bullet_lib = { git = "https://github.com/jw1912/bullet", rev = "6b2d278140a067975b372c8a6f841884c5140e7b", package = "bullet_lib", features = ["metal"] }
