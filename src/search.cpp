@@ -156,10 +156,10 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
     Move best_move = NO_MOVE;
     for (int i = 0; i < list.size; ++i) {
         const Move m = pick(list, scores, i);
+        const bool quiet = !is_capture(m) && !is_promo(m);
         if (!S.board.make(m)) continue;
         if (nnue_ready()) nnue_update(S.acc[ply], S.acc[ply + 1], S.board);
         ++legal;
-        const bool quiet = !is_capture(m) && !is_promo(m);
         const int new_depth = depth - 1;
         int score;
         if (legal == 1) {
