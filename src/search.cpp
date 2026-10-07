@@ -149,6 +149,9 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
             return s;
     }
 
+    // Internal iterative reduction: with no TT move to try first, ordering is weak here; search shallower.
+    if (depth >= 4 && tt_move == NO_MOVE) --depth;
+
     const int raw_eval = in_check ? -INF : eval_at(ply);
     const int static_eval = in_check ? -INF : corrected(raw_eval);
     S.eval_stack[ply] = static_eval;
