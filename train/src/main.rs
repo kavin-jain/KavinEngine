@@ -1,8 +1,10 @@
-// Trains the (768 -> N)x2 -> 1 SCReLU net on bulletformat shards (eval-only target: no game results exist).
+// Trains the (768x10hm -> N)x2 -> 1 SCReLU net on bulletformat shards (eval-only target: no game results exist).
+// Inputs: 10 king buckets, horizontally mirrored, plus a shared 768 "factoriser" folded into every bucket at save
+// time (bullet examples/progression/3_input_buckets.rs). The engine's src/nnue.cpp mirrors KB_LAYOUT exactly.
 // Usage: train <hidden: 128|256> <superbatches> <net_id> <data_dir> [measure]
 use bullet_lib::{
-    game::inputs::Chess768,
-    nn::optimiser::AdamW,
+    game::inputs::{ChessBucketsMirrored, get_num_buckets},
+    nn::{InitSettings, Shape, optimiser::AdamW},
     trainer::{
         save::SavedFormat,
         schedule::{TrainingSchedule, TrainingSteps, lr, wdl},
@@ -11,6 +13,18 @@ use bullet_lib::{
     value::{ValueTrainerBuilder, loader},
 };
 
+#[rustfmt::skip]
+const KB_LAYOUT: [usize; 32] = [
+    0, 1, 2, 3,
+    4, 4, 5, 5,
+    6, 6, 6, 6,
+    7, 7, 7, 7,
+    8, 8, 8, 8,
+    8, 8, 8, 8,
+    9, 9, 9, 9,
+    9, 9, 9, 9,
+];
+const NUM_KB: usize = get_num_buckets(&KB_LAYOUT);
 const SCALE: i32 = 400;
 const QA: i16 = 255;
 const QB: i16 = 64;
@@ -36,16 +50,24 @@ fn main() {
     let mut trainer = ValueTrainerBuilder::default()
         .dual_perspective()
         .optimiser(AdamW)
-        .inputs(Chess768)
+        .inputs(ChessBucketsMirrored::new(KB_LAYOUT))
         .save_format(&[
-            SavedFormat::id("l0w").round().quantise::<i16>(QA),
+            SavedFormat::id("l0w")
+                .transform(|store, weights| {
+                    let factoriser = store.get("l0f").values.f32().repeat(NUM_KB);
+                    weights.into_iter().zip(factoriser).map(|(a, b)| a + b).collect()
+                })
+                .round()
+                .quantise::<i16>(QA),
             SavedFormat::id("l0b").round().quantise::<i16>(QA),
             SavedFormat::id("l1w").round().quantise::<i16>(QB),
             SavedFormat::id("l1b").round().quantise::<i16>(QA * QB),
         ])
         .loss_fn(|output, target| output.sigmoid().squared_error(target))
         .build(|builder, stm_inputs, ntm_inputs| {
-            let l0 = builder.new_affine("l0", 768, hidden);
+            let l0f = builder.new_weights("l0f", Shape::new(hidden, 768), InitSettings::Zeroed);
+            let mut l0 = builder.new_affine("l0", 768 * NUM_KB, hidden);
+            l0.weights = l0.weights + l0f.repeat(NUM_KB);
             let l1 = builder.new_affine("l1", 2 * hidden, 1);
             let stm_hidden = l0.forward(stm_inputs).screlu();
             let ntm_hidden = l0.forward(ntm_inputs).screlu();

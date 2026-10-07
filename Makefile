@@ -2,6 +2,7 @@
 EXE         ?= engine
 EVALFILE    ?= nets/m2-256.bin
 NNUE_HIDDEN ?= 256
+NNUE_KB     ?= 0
 ARCH        := $(shell uname -m)
 ifeq ($(ARCH),arm64)
   NATIVE := -mcpu=native
@@ -9,7 +10,7 @@ else
   NATIVE := -march=native
 endif
 CXXFLAGS ?= -std=c++17 -O3 -Wall -Wextra -DNDEBUG $(NATIVE)
-CXXFLAGS += -DNNUE_HIDDEN=$(NNUE_HIDDEN)
+CXXFLAGS += -DNNUE_HIDDEN=$(NNUE_HIDDEN) -DNNUE_KING_BUCKETS=$(NNUE_KB)
 SRC      := $(wildcard src/*.cpp) pc/platform_pc.cpp
 HDR      := $(wildcard src/*.h)
 NET_CPP  := build/net_$(basename $(notdir $(EVALFILE))).cpp
@@ -32,7 +33,7 @@ material: $(SRC) $(HDR) pc/main.cpp $(NET_CPP)
 
 test: $(SRC) $(HDR) $(NET_CPP) $(wildcard tests/*.cpp tests/*.h)
 	@mkdir -p build
-	$(CXX) -std=c++17 -O2 -g -Wall -Wextra -DNNUE_HIDDEN=$(NNUE_HIDDEN) -o build/tests $(SRC) $(NET_CPP) $(wildcard tests/*.cpp) -pthread
+	$(CXX) -std=c++17 -O2 -g -Wall -Wextra -DNNUE_HIDDEN=$(NNUE_HIDDEN) -DNNUE_KING_BUCKETS=$(NNUE_KB) -DEVALS_TXT='"$(basename $(EVALFILE)).evals.txt"' -o build/tests $(SRC) $(NET_CPP) $(wildcard tests/*.cpp) -pthread
 	./build/tests
 
 convert: tools/lichess_convert.cpp tools/chessboard_record.h tools/lichess_parse.h $(CORE_SRC) $(HDR)

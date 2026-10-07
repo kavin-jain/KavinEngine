@@ -16,7 +16,7 @@ TEST(nnue_loaded) { CHECK(nnue_ready()); }
 TEST(nnue_rejects_out_of_range_weights) {  // the int16/int32 arithmetic is only exact for |W1| <= 127
     std::vector<unsigned char> bad(NNUE_DATA, NNUE_DATA + NNUE_DATA_SIZE);
     int16_t w = 128;
-    std::memcpy(bad.data() + (768 * NNUE_HIDDEN + NNUE_HIDDEN) * sizeof(int16_t), &w, sizeof w);  // W1[0]
+    std::memcpy(bad.data() + (NNUE_INPUTS * NNUE_HIDDEN + NNUE_HIDDEN) * sizeof(int16_t), &w, sizeof w);  // W1[0]
     CHECK(!nnue_load(bad.data(), bad.size()));
     CHECK(nnue_load(NNUE_DATA, NNUE_DATA_SIZE));
 }
@@ -44,7 +44,10 @@ TEST(incremental_matches_refresh) {  // random playouts hit captures, castling, 
 }
 
 TEST(nnue_matches_trainer_float_evals) {
-    std::ifstream f("nets/m2-256.evals.txt");
+#ifndef EVALS_TXT
+#define EVALS_TXT "nets/m2-256.evals.txt"
+#endif
+    std::ifstream f(EVALS_TXT);  // the trainer's float evals for the net that was built in
     CHECK(f.good());
     std::string line;
     int n = 0;
