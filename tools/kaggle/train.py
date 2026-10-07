@@ -40,7 +40,8 @@ print("lichess data:", LICHESS, flush=True)
 for net, hidden, sbs, wdl, data in JOBS:
     data = LICHESS if data == "lichess" else data
     log = f"/kaggle/working/{net}.log"
-    sh(f"cd {T} && WDL={wdl} target/release/train {hidden} {sbs} {net} {data} > {log} 2>&1; s=$?; "
-       f"tr '\\r' '\\n' < {log} | grep -a -E 'superbatch|loss' | grep -av Estimated | tail -n 5; exit $s")
+    # Full log to a file; one line per superbatch to stdout, visible live via `kaggle kernels logs -f`.
+    sh(f"set -o pipefail; cd {T} && WDL={wdl} target/release/train {hidden} {sbs} {net} {data} 2>&1 | tee {log} | "
+       f"stdbuf -oL tr '\\r' '\\n' | grep --line-buffered -a 'running loss'")
     shutil.copy(f"{T}/checkpoints/{net}-{sbs}/quantised.bin", f"/kaggle/working/{net}.bin")
     shutil.copy(f"{T}/checkpoints/{net}.evals.txt", f"/kaggle/working/{net}.evals.txt")
