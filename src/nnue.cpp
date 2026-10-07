@@ -9,8 +9,9 @@ namespace {
 constexpr int N = NNUE_HIDDEN;
 const int16_t* W0 = nullptr;  // [NNUE_INPUTS][N], scaled by QA
 const int16_t* B0 = nullptr;  // [N], QA
-const int16_t* W1 = nullptr;  // [2N], QB: first N for side to move, next N for the other side
-int B1 = 0;                   // QA * QB
+const int16_t* W1 = nullptr;  // [OB][2N], QB: per output bucket, first N for side to move, next N for the other side
+const int16_t* B1 = nullptr;  // [OB], QA * QB
+constexpr int OB = NNUE_OUTPUT_BUCKETS;
 
 #if NNUE_KING_BUCKETS
 // King bucket per square of the mirrored half-board (rank-major, files a-d): train/src/main.rs KB_LAYOUT.
@@ -39,7 +40,7 @@ inline void add(int16_t* a, int f) { const int16_t* w = W0 + f * N; for (int i =
 }  // namespace
 
 size_t nnue_expected_size() {
-    const size_t raw = size_t(NNUE_INPUTS * N + N + 2 * N + 1) * sizeof(int16_t);
+    const size_t raw = size_t(NNUE_INPUTS * N + N + OB * (2 * N + 1)) * sizeof(int16_t);
     return (raw + 63) / 64 * 64;
 }
 
@@ -53,12 +54,12 @@ bool nnue_load(const unsigned char* data, size_t size) {
     int m0 = 0, mb = 0, m1 = 0;
     for (int i = 0; i < NNUE_INPUTS * N; ++i) m0 = std::max(m0, std::abs(int(w0[i])));
     for (int i = 0; i < N; ++i) mb = std::max(mb, std::abs(int(b0[i])));
-    for (int i = 0; i < 2 * N; ++i) m1 = std::max(m1, std::abs(int(w1[i])));
+    for (int i = 0; i < OB * 2 * N; ++i) m1 = std::max(m1, std::abs(int(w1[i])));
     if (mb + 32 * m0 > INT16_MAX || m1 > 127) return false;
     W0 = w0;
     B0 = b0;
     W1 = w1;
-    B1 = W1[2 * N];
+    B1 = W1 + OB * 2 * N;
     return true;
 }
 
@@ -123,8 +124,11 @@ static int32_t screlu_dot(const int16_t* __restrict a, const int16_t* __restrict
     return s;
 }
 
-int nnue_evaluate(const Accumulator& acc, Color stm) {
-    const int64_t sum = int64_t(screlu_dot(acc.v[stm], W1)) + screlu_dot(acc.v[~stm], W1 + N);
-    const int64_t out = sum / NNUE_QA + B1;
+int nnue_evaluate(const Accumulator& acc, Color stm, int pieces) {
+    constexpr int DIV = (32 + OB - 1) / OB;  // bullet MaterialCount<OB>: bucket = (pieces - 2) / ceil(32 / OB)
+    const int ob = (pieces - 2) / DIV;
+    const int16_t* w = W1 + ob * 2 * N;
+    const int64_t sum = int64_t(screlu_dot(acc.v[stm], w)) + screlu_dot(acc.v[~stm], w + N);
+    const int64_t out = sum / NNUE_QA + B1[ob];
     return int(out * NNUE_SCALE / (NNUE_QA * NNUE_QB));
 }
