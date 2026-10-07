@@ -18,6 +18,7 @@ struct SearchResult { Move best; int score; int depth; uint64_t nodes; };
 
 extern TT g_tt;
 extern std::atomic<bool> g_stop;
+extern int g_move_overhead;  // ms kept in reserve per move for GUI/network lag (UCI "Move Overhead")
 
 void search_init();         // reduction table; call once
 void clear_search_state();  // ucinewgame: TT, history, killers
