@@ -1,0 +1,93 @@
+# CCRL-anchored gauntlet: our engine vs fixed Stash versions with known CCRL Blitz ratings, on a balanced book
+# (8moves_v3). tools/gauntlet.py dispatches it, merges the jobs' results and fits our rating with the anchors held fixed.
+name: gauntlet
+run-name: "gauntlet ${{ inputs.id }}"
+on:
+  workflow_dispatch:
+    inputs:
+      id: {description: "gauntlet id", required: true}
+      ref: {description: "engine commit", required: true}
+      anchors: {description: "JSON list of Stash tags", default: '["v21.0","v25.0","v27.0","v29.0","v31.0"]'}
+      tc: {description: "time control", default: "60+0.6"}
+      rounds: {description: "rounds per job (each round: 2 games vs every anchor)", default: "10"}
+      concurrency: {description: "games at once per job", default: "3"}
+      jobs: {description: "JSON list of job numbers", default: "[1,2,3,4,5,6,7,8]"}
+
+permissions:
+  contents: read
+
+jobs:
+  games:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ fromJSON(inputs.jobs) }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ inputs.ref }}", path: ours}
+
+      - name: Cache fastchess and book
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            fastchess-bin
+            8moves_v3.pgn
+          key: fastchess-a281caf-release-8moves-5835239f
+      - name: Build fastchess (pinned) and fetch book (SHA-checked)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone -q https://github.com/Disservin/fastchess fc && git -C fc checkout -q a281caf
+          make -C fc -j4 build=release > /dev/null && cp fc/fastchess fastchess-bin
+          curl -sSL -o 8m.zip https://github.com/official-stockfish/books/raw/master/8moves_v3.pgn.zip
+          python3 -m zipfile -e 8m.zip .
+          echo "5835239f88cc2c7511b177c32392a69f3ede21819cf0616f80a7f907cd21d17e  8moves_v3.pgn" | sha256sum -c -
+
+      - name: Build engines
+        run: |
+          make -C ours -j4 -s EXE=engine && echo "ours: $(ours/engine bench | tail -1)"
+          git clone -q https://github.com/mhouppin/stash-bot stash
+          for t in $(echo '${{ inputs.anchors }}' | python3 -c "import json,sys; print(' '.join(json.load(sys.stdin)))"); do
+            git -C stash clean -fdxq && git -C stash checkout -qf "$t"
+            sed -i 's/-Werror//' stash/src/Makefile  # old sources vs a newer compiler: warnings must not fail the build
+            make -C stash/src -s -j4 > /dev/null && cp stash/src/stash-bot "stash-$t"
+            echo "stash-$t: $(printf 'uci\nquit\n' | ./stash-$t | grep '^id name')"
+          done
+
+      - name: Play
+        run: |
+          args=""
+          for t in $(echo '${{ inputs.anchors }}' | python3 -c "import json,sys; print(' '.join(json.load(sys.stdin)))"); do
+            args="$args -engine cmd=./stash-$t name=Stash-$t"
+          done
+          ./fastchess-bin -engine cmd=ours/engine name=KavinEngine $args \
+            -each tc=${{ inputs.tc }} option.Hash=16 -tournament gauntlet -seeds 1 \
+            -openings file=8moves_v3.pgn format=pgn order=random -srand $(( ${{ github.run_id }} % 100000 * 100 + ${{ matrix.job }} )) \
+            -rounds ${{ inputs.rounds }} -games 2 -repeat -concurrency ${{ inputs.concurrency }} \
+            -recover -pgnout file=games.pgn > match.log 2>&1
+          tail -8 match.log
+          python3 - <<'EOF'
+          import json, re
+          res = {}
+          for g in open("games.pgn").read().split("[Event ")[1:]:
+              h = dict(re.findall(r'\[(\w+) "([^"]*)"\]', g))
+              me = "White" if h["White"] == "KavinEngine" else "Black"
+              opp = h["Black" if me == "White" else "White"].removeprefix("Stash-")
+              r = res.setdefault(opp, {"w": 0, "d": 0, "l": 0, "time_losses": 0})
+              out = {"1-0": "White", "0-1": "Black"}.get(h["Result"], "draw")
+              r["d" if out == "draw" else "w" if out == me else "l"] += 1
+              if re.search(me + r" loses on time", g): r["time_losses"] += 1
+          json.dump(res, open("result.json", "w")); print(res)
+          EOF
+          xz -9 games.pgn
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: "gauntlet-${{ inputs.id }}-j${{ matrix.job }}"
+          path: |
+            result.json
+            games.pgn.xz
+            match.log
+          retention-days: 30
