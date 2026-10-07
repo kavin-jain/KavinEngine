@@ -1,0 +1,92 @@
+# One batch of an SPRT: N parallel jobs, each plays a fixed number of game pairs (dev vs base) and uploads its
+# pentanomial counts. tools/cloud_sprt.py dispatches batches, merges the counts and stops at H0/H1, so no job
+# ever gets near GitHub's 6-hour limit.
+name: sprt-batch
+run-name: "sprt ${{ inputs.id }} batch ${{ inputs.batch }}"
+on:
+  workflow_dispatch:
+    inputs:
+      id: {description: "test id (e.g. fp)", required: true}
+      batch: {description: "batch number (also the opening seed)", required: true}
+      dev: {description: "dev commit", required: true}
+      base: {description: "base commit", required: true}
+      tc: {description: "time control", default: "8+0.08"}
+      rounds: {description: "game pairs per job", default: "100"}
+      concurrency: {description: "games at once per job", default: "3"}
+      jobs: {description: "JSON list of job numbers", default: "[1,2,3,4,5,6,7,8,9,10]"}
+
+permissions:
+  contents: read
+
+jobs:
+  games:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ fromJSON(inputs.jobs) }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ inputs.dev }}", path: dev}
+      - uses: actions/checkout@v4
+        with: {ref: "${{ inputs.base }}", path: base}
+
+      - name: Cache fastchess and book
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            fastchess-bin
+            UHO_Lichess_4852_v1.epd
+          key: fastchess-a281caf-uho-7a7f6470
+      - name: Build fastchess (pinned) and fetch book (SHA-checked)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone -q https://github.com/Disservin/fastchess fc && git -C fc checkout -q a281caf
+          make -C fc -j4 > /dev/null && cp fc/fastchess fastchess-bin
+          curl -sSL -o uho.zip https://github.com/official-stockfish/books/raw/master/UHO_Lichess_4852_v1.epd.zip
+          python3 -m zipfile -e uho.zip .
+          echo "7a7f6470615a69c6cf23d565417701d38732876f480af90d67b42abade35644a  UHO_Lichess_4852_v1.epd" | sha256sum -c -
+
+      - name: Build engines and record bench
+        run: |
+          make -C dev -j4 -s EXE=engine && make -C base -j4 -s EXE=engine
+          echo "dev  $(dev/engine bench | tail -1)"  | tee bench.txt
+          echo "base $(base/engine bench | tail -1)" | tee -a bench.txt
+          nproc; grep -m1 "model name" /proc/cpuinfo
+
+      - name: Play games
+        run: |
+          ./fastchess-bin -engine cmd=dev/engine name=new -engine cmd=base/engine name=base \
+            -each tc=${{ inputs.tc }} option.Hash=16 \
+            -openings file=UHO_Lichess_4852_v1.epd format=epd order=random \
+            -srand $(( ${{ inputs.batch }} * 1000 + ${{ matrix.job }} )) \
+            -rounds ${{ inputs.rounds }} -repeat -concurrency ${{ inputs.concurrency }} \
+            -report penta=true -recover -pgnout file=games.pgn > match.log 2>&1
+          tail -12 match.log
+          python3 - <<'EOF'
+          import json, re
+          log = open("match.log").read()
+          penta = json.loads(re.findall(r"Ptnml\(0-2\): (\[[^\]]*\])", log)[-1])
+          w, l, d = map(int, re.findall(r"Wins: (\d+), Losses: (\d+), Draws: (\d+)", log)[-1])
+          games = open("games.pgn").read().split("[Event ")[1:]
+          tl = {"new": 0, "base": 0}
+          for g in games:
+              m = re.search(r"(White|Black) loses on time", g)
+              if m:
+                  tl[re.search(r'\[%s "([^"]+)"\]' % m.group(1), g).group(1)] += 1
+          r = {"penta": penta, "wins": w, "losses": l, "draws": d, "games": len(games),
+               "time_losses": tl, "bench": open("bench.txt").read()}
+          json.dump(r, open("result.json", "w")); print(r)
+          EOF
+          xz -9 games.pgn
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: "${{ inputs.id }}-b${{ inputs.batch }}-j${{ matrix.job }}"
+          path: |
+            result.json
+            games.pgn.xz
+            match.log
+          retention-days: 30
