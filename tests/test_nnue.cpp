@@ -58,7 +58,7 @@ TEST(nnue_matches_trainer_float_evals) {
         const double expect = std::stod(line.substr(bar + 1));
         CHECK(B.set_fen(fen));
         nnue_refresh(B, A);
-        const int got = nnue_evaluate(A, B.stm);
+        const int got = nnue_evaluate(A, B.stm, popcount(B.occ));
         // Rounding the output weights to 1/64 alone gives ~13 cp of noise per position; layout or indexing bugs
         // give errors of hundreds of cp. So: no position beyond 20 cp (or 3 %), and RMS over all within 10 cp.
         const double tol = std::max(20.0, 0.03 * std::fabs(expect));

@@ -10,6 +10,9 @@
 #define NNUE_KING_BUCKETS 0  // 0: plain 768 inputs (m2 nets); 10: horizontally mirrored king buckets (layout in nnue.cpp)
 #endif
 constexpr int NNUE_INPUTS = 768 * (NNUE_KING_BUCKETS ? NNUE_KING_BUCKETS : 1);
+#ifndef NNUE_OUTPUT_BUCKETS
+#define NNUE_OUTPUT_BUCKETS 1  // 1: single output (m2/m3 nets); 8: bullet MaterialCount<8>, chosen by piece count
+#endif
 constexpr int NNUE_QA = 255, NNUE_QB = 64, NNUE_SCALE = 400;
 
 struct alignas(64) Accumulator { int16_t v[2][NNUE_HIDDEN]; };  // [perspective colour][neuron]
@@ -19,7 +22,7 @@ bool nnue_load(const unsigned char* data, size_t size);  // false if the size do
 bool nnue_ready();
 void nnue_refresh(const Board& b, Accumulator& acc);
 void nnue_update(const Accumulator& parent, Accumulator& child, const Board& b);  // applies b.dirty
-int nnue_evaluate(const Accumulator& acc, Color stm);  // centipawns, side-to-move relative
+int nnue_evaluate(const Accumulator& acc, Color stm, int pieces);  // centipawns, side-to-move relative; pieces incl. kings
 
 extern const unsigned char NNUE_DATA[];  // generated from EVALFILE by tools/bin2cpp.py
 extern const size_t NNUE_DATA_SIZE;

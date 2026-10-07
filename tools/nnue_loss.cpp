@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
     while (n < max && std::fread(&r, sizeof r, 1, f) == 1) {
         record_pieces(r, B.pieces);
         nnue_refresh(B, acc);
-        const double d = sigmoid(nnue_evaluate(acc, WHITE)) - sigmoid(r.score);
+        const double d = sigmoid(nnue_evaluate(acc, WHITE, popcount(r.occ))) - sigmoid(r.score);
         sum += d * d;
         ++n;
     }

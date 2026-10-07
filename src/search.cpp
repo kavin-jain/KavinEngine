@@ -38,7 +38,7 @@ struct Searcher {
 Searcher S;  // static storage: these arrays must not live on the small ESP32 task stack
 
 int eval_at(int ply) {
-    const int e = nnue_ready() ? nnue_evaluate(S.acc[ply], S.board.stm) : evaluate(S.board);
+    const int e = nnue_ready() ? nnue_evaluate(S.acc[ply], S.board.stm, popcount(S.board.occ)) : evaluate(S.board);
     return std::clamp(e, -MATE_BOUND + 1, MATE_BOUND - 1);
 }
 
