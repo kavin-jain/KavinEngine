@@ -135,6 +135,10 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
     const int static_eval = in_check ? -INF : eval_at(ply);
     S.eval_stack[ply] = static_eval;
 
+    // Reverse futility pruning: this far above beta near the leaves, assume the node fails high.
+    if (!pv_node && !in_check && depth <= 8 && std::abs(beta) < MATE_BOUND && static_eval - 80 * depth >= beta)
+        return static_eval;
+
     // Null-move pruning: if passing still fails high, this node is very likely a cut-node.
     if (!pv_node && !in_check && null_ok && depth >= 3 && S.board.has_non_pawn_material(S.board.stm)
         && static_eval >= beta) {
