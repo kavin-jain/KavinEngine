@@ -14,15 +14,19 @@ def run(*cmd):
     return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout.strip()
 
 
+def gh_json(*args):  # None on a transient API error, so polling survives network hiccups
+    r = subprocess.run(("gh",) + args, capture_output=True, text=True)
+    return json.loads(r.stdout) if r.returncode == 0 else None
+
+
 def find_run(title, tries=30):
-    for _ in range(tries):
-        runs = json.loads(run("gh", "run", "list", "--workflow", "sprt-batch.yml", "--limit", "30",
-                              "--json", "databaseId,displayTitle"))
-        for r in runs:
+    for i in range(tries):
+        for r in gh_json("run", "list", "--workflow", "sprt-batch.yml", "--limit", "50",
+                         "--json", "databaseId,displayTitle") or []:
             if r["displayTitle"] == title:
                 return r["databaseId"]
-        time.sleep(10)
-    sys.exit(f"run '{title}' did not appear")
+        if i + 1 < tries: time.sleep(10)
+    return None
 
 
 def main():
@@ -50,12 +54,16 @@ def main():
     while True:
         b = st["batches"] + 1
         title = f"sprt {a.id} batch {b}"
-        run("gh", "workflow", "run", "sprt-batch.yml", "-f", f"id={a.id}", "-f", f"batch={b}", "-f", f"dev={dev}",
-            "-f", f"base={base}", "-f", f"tc={a.tc}", "-f", f"rounds={a.rounds}", "-f", f"concurrency={a.concurrency}",
-            "-f", "jobs=" + json.dumps(list(range(1, a.jobs + 1))))
-        rid = find_run(title)
-        log(f"batch {b}: run {rid} dispatched ({a.jobs} jobs x {2 * a.rounds} games)")
-        while json.loads(run("gh", "run", "view", str(rid), "--json", "status"))["status"] != "completed":
+        rid = find_run(title, tries=1)  # resuming: the batch may already be running
+        if rid is None:
+            run("gh", "workflow", "run", "sprt-batch.yml", "-f", f"id={a.id}", "-f", f"batch={b}", "-f", f"dev={dev}",
+                "-f", f"base={base}", "-f", f"tc={a.tc}", "-f", f"rounds={a.rounds}", "-f", f"concurrency={a.concurrency}",
+                "-f", "jobs=" + json.dumps(list(range(1, a.jobs + 1))))
+            rid = find_run(title) or sys.exit(f"run '{title}' did not appear")
+            log(f"batch {b}: run {rid} dispatched ({a.jobs} jobs x {2 * a.rounds} games)")
+        else:
+            log(f"batch {b}: resuming run {rid}")
+        while (gh_json("run", "view", str(rid), "--json", "status") or {}).get("status") != "completed":
             time.sleep(60)
         bdir = out / f"b{b}"
         subprocess.run(["gh", "run", "download", str(rid), "-D", str(bdir)], check=False, capture_output=True)
