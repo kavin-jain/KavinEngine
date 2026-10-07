@@ -45,4 +45,9 @@ loss: tools/nnue_loss.cpp tools/chessboard_record.h src/nnue.cpp $(HDR)
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) -o build/nnue_loss_$(NNUE_HIDDEN) tools/nnue_loss.cpp src/nnue.cpp
 
-.PHONY: pesto material test convert loss
+# Self-play data with game results (one process per core; see the file header).
+datagen: tools/datagen.cpp tools/chessboard_record.h $(SRC) $(HDR) $(NET_CPP)
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) -o build/datagen tools/datagen.cpp $(SRC) $(NET_CPP) -pthread
+
+.PHONY: pesto material test convert loss datagen

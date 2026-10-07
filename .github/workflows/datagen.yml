@@ -1,0 +1,44 @@
+# Self-play training data (tools/datagen.cpp): every job runs one datagen process per core for a fixed time
+# and uploads the concatenated records. Seeds come from the run id, so reruns never repeat games.
+name: datagen
+run-name: "datagen ${{ inputs.id }}"
+on:
+  workflow_dispatch:
+    inputs:
+      id: {description: "dataset id (e.g. sp1)", required: true}
+      ref: {description: "engine commit", required: true}
+      minutes: {description: "generation time per job", default: "60"}
+      nodes: {description: "search nodes per move", default: "5000"}
+      jobs: {description: "JSON list of job numbers", default: "[1,2,3,4,5,6,7,8]"}
+
+permissions:
+  contents: read
+
+jobs:
+  gen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ fromJSON(inputs.jobs) }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ inputs.ref }}"}
+      - name: Build
+        run: make -j4 -s datagen
+      - name: Generate
+        run: |
+          for i in $(seq 1 "$(nproc)"); do
+            timeout -s INT "${{ inputs.minutes }}m" build/datagen "part$i.bin" 1000000000 \
+              $(( ${{ github.run_id }} * 1000 + ${{ matrix.job }} * 10 + i )) "${{ inputs.nodes }}" 2> "gen$i.log" &
+          done
+          wait
+          for f in part*.bin; do s=$(stat -c %s "$f"); truncate -s $(( s / 32 * 32 )) "$f"; done  # drop a torn record
+          cat part*.bin > data.bin && rm part*.bin
+          tail -qn1 gen*.log; ls -l data.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: "${{ inputs.id }}-j${{ matrix.job }}"
+          path: data.bin
+          retention-days: 7
