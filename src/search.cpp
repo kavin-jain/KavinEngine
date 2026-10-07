@@ -29,6 +29,8 @@ struct Searcher {
     uint8_t lmr[64][64];
     Accumulator acc[MAX_PLY + 1];  // acc[ply] matches the board at that ply
     int eval_stack[MAX_PLY + 1];   // static eval per ply (-INF when in check)
+    int8_t moved_pc[MAX_PLY + 1], moved_to[MAX_PLY + 1];  // the move that reached each ply (NO_PIECE: root/null move)
+    int16_t (*cont)[64][12][64] = nullptr;  // continuation history [prev piece][prev to][piece][to]: 1.2 MB on the heap (PSRAM on ESP32)
 };
 Searcher S;  // static storage: these arrays must not live on the small ESP32 task stack
 
@@ -46,6 +48,12 @@ bool should_stop() {
     return S.stopped;
 }
 
+// Continuation history after the move that reached `ply`, or nullptr (table missing, root, after a null move).
+int16_t* cont_slot(int ply, int pc, int to) {
+    if (!S.cont || ply < 0 || S.moved_pc[ply] == NO_PIECE) return nullptr;
+    return &S.cont[S.moved_pc[ply]][S.moved_to[ply]][pc][to];
+}
+
 void score_moves(const MoveList& list, int16_t* scores, Move tt_move, int ply) {
     for (int i = 0; i < list.size; ++i) {
         const Move m = list.moves[i];
@@ -57,7 +65,13 @@ void score_moves(const MoveList& list, int16_t* scores, Move tt_move, int ply) {
             scores[i] = int16_t(20000 + victim * 8 - attacker + promo);
         } else if (m == S.killers[ply][0]) scores[i] = 19000;
         else if (m == S.killers[ply][1]) scores[i] = 18999;
-        else scores[i] = S.history[S.board.stm][from_sq(m)][to_sq(m)];  // bounded to +-16384
+        else {  // quiet: butterfly history + continuation history after the last two moves, each bounded to +-16384
+            const int pc = S.board.mailbox[from_sq(m)], to = to_sq(m);
+            int h = S.history[S.board.stm][from_sq(m)][to];
+            for (int back = 0; back < 2; ++back)
+                if (const int16_t* c = cont_slot(ply - back, pc, to)) h += *c;
+            scores[i] = int16_t(h / 3);  // keeps quiets below the killers
+        }
     }
 }
 
@@ -72,6 +86,13 @@ Move pick(MoveList& list, int16_t* scores, int i) {  // selection sort, one step
 void update_history(Move m, int bonus) {  // "gravity": keeps values within +-16384
     int16_t& h = S.history[S.board.stm][from_sq(m)][to_sq(m)];
     h = int16_t(h + bonus - h * std::abs(bonus) / 16384);
+}
+
+void update_quiet(Move m, int ply, int bonus) {  // butterfly + continuation history; board is at the node
+    update_history(m, bonus);
+    const int pc = S.board.mailbox[from_sq(m)], to = to_sq(m);
+    for (int back = 0; back < 2; ++back)
+        if (int16_t* c = cont_slot(ply - back, pc, to)) *c = int16_t(*c + bonus - *c * std::abs(bonus) / 16384);
 }
 
 int qsearch(int alpha, int beta, int ply) {
@@ -95,6 +116,8 @@ int qsearch(int alpha, int beta, int ply) {
         Move m = pick(list, scores, i);
         if (!S.board.make(m)) continue;
         if (nnue_ready()) nnue_update(S.acc[ply], S.acc[ply + 1], S.board);
+        S.moved_pc[ply + 1] = int8_t(S.board.mailbox[to_sq(m)]);
+        S.moved_to[ply + 1] = int8_t(to_sq(m));
         ++legal;
         int score = -qsearch(-beta, -alpha, ply + 1);
         S.board.unmake(m);
@@ -144,6 +167,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
         && static_eval >= beta) {
         S.board.make_null();
         S.acc[ply + 1] = S.acc[ply];
+        S.moved_pc[ply + 1] = NO_PIECE;
         int s = -negamax(-beta, -beta + 1, depth - 1 - (3 + depth / 6), ply + 1, false);
         S.board.unmake_null();
         if (S.stopped) return 0;
@@ -167,6 +191,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
         if (!pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 6 && static_eval + 100 + 100 * depth <= alpha
             && !S.board.in_check()) { S.board.unmake(m); continue; }
         if (nnue_ready()) nnue_update(S.acc[ply], S.acc[ply + 1], S.board);
+        S.moved_pc[ply + 1] = int8_t(S.board.mailbox[to_sq(m)]);
+        S.moved_to[ply + 1] = int8_t(to_sq(m));
         ++legal;
         const int new_depth = depth - 1;
         int score;
@@ -194,8 +220,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
                     if (quiet) {
                         if (S.killers[ply][0] != m) { S.killers[ply][1] = S.killers[ply][0]; S.killers[ply][0] = m; }
                         const int bonus = std::min(depth * depth, 1200);
-                        update_history(m, bonus);
-                        for (int q = 0; q < n_quiets; ++q) update_history(quiets[q], -bonus);
+                        update_quiet(m, ply, bonus);
+                        for (int q = 0; q < n_quiets; ++q) update_quiet(quiets[q], ply, -bonus);
                     }
                     break;
                 }
@@ -237,16 +263,22 @@ void search_init() {
     for (int d = 0; d < 64; ++d)
         for (int m = 0; m < 64; ++m)
             S.lmr[d][m] = (d && m) ? uint8_t(0.75 + std::log(double(d)) * std::log(double(m)) / 2.25) : 0;
+    if (!S.cont) {
+        S.cont = static_cast<int16_t (*)[64][12][64]>(alloc_mem(sizeof(int16_t) * 12 * 64 * 12 * 64, false));
+        if (S.cont) std::memset(S.cont, 0, sizeof(int16_t) * 12 * 64 * 12 * 64);
+    }
 }
 
 void clear_search_state() {
     g_tt.clear();
     std::memset(S.history, 0, sizeof S.history);
     std::memset(S.killers, 0, sizeof S.killers);
+    if (S.cont) std::memset(S.cont, 0, sizeof(int16_t) * 12 * 64 * 12 * 64);
 }
 
 SearchResult search(const Board& root, const Limits& limits, bool verbose) {
     S.board = root;
+    S.moved_pc[0] = NO_PIECE;
     if (nnue_ready()) nnue_refresh(S.board, S.acc[0]);
     S.limits = limits;
     S.start = now_ms();
