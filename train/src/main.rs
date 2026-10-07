@@ -46,6 +46,8 @@ fn main() {
     let net_id = args[3].clone();
     let data_dir = args[4].clone();
     let measure = args.get(5).is_some_and(|a| a == "measure");
+    // Game-result weight in the label (needs data with real results, e.g. tools/datagen.cpp output).
+    let wdl: f32 = std::env::var("WDL").map(|v| v.parse().expect("WDL")).unwrap_or(0.0);
 
     let mut trainer = ValueTrainerBuilder::default()
         .dual_perspective()
@@ -83,7 +85,7 @@ fn main() {
             start_superbatch: 1,
             end_superbatch: superbatches,
         },
-        wdl_scheduler: wdl::ConstantWDL { value: 0.0 },  // labels are evals only
+        wdl_scheduler: wdl::ConstantWDL { value: wdl },
         lr_scheduler: lr::CosineDecayLR { initial_lr: 0.001, final_lr: 0.001 * 0.3 * 0.3 * 0.3, final_superbatch: superbatches },
         save_rate: 10,
     };

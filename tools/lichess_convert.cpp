@@ -1,6 +1,7 @@
 // Lichess eval DB -> bullet ChessBoard shards. Streams stdin; never stores the raw file.
 //   zstd -dc lichess_db_eval.jsonl.zst | lichess_convert convert OUTDIR MAX_POSITIONS
 //   lichess_convert shuffle FILE...        in-place Fisher-Yates on 32-byte records
+//   lichess_convert shard OUTDIR FILE...   records (e.g. datagen output) -> random train_NN.bin / ~0.8% val.bin
 //   lichess_convert text MAX < jsonl       "FEN | cp | 0.5" lines for kept positions (bullet-utils cross-check)
 //   lichess_convert binary OUT MAX < jsonl same positions as `text`, as records in one file
 #include <cstdio>
@@ -80,6 +81,33 @@ static int shuffle(const char* path) {
     return 0;
 }
 
+// Appends each record to a random shard; shuffling each shard afterwards gives a global shuffle.
+static int shard(const std::string& dir, int nfiles, char** files) {
+    constexpr int SHARDS = 32;
+    std::vector<FILE*> out;
+    for (int i = 0; i <= SHARDS; ++i) {
+        char name[32];
+        std::snprintf(name, sizeof name, i < SHARDS ? "/train_%02d.bin" : "/val.bin", i);
+        out.push_back(std::fopen((dir + name).c_str(), "ab"));
+        if (!out.back()) { std::perror(name); return 1; }
+    }
+    std::mt19937_64 rng(nfiles);
+    uint64_t n = 0;
+    ChessBoardRecord r;
+    for (int i = 0; i < nfiles; ++i) {
+        FILE* in = std::fopen(files[i], "rb");
+        if (!in) { std::perror(files[i]); return 1; }
+        for (; std::fread(&r, sizeof r, 1, in) == 1; ++n) {
+            const uint64_t x = rng();
+            if (std::fwrite(&r, sizeof r, 1, out[(x >> 57) == 0 ? SHARDS : x % SHARDS]) != 1) { std::perror("write"); return 1; }
+        }
+        std::fclose(in);
+    }
+    for (FILE* f : out) std::fclose(f);
+    std::fprintf(stderr, "sharded %llu records into %s\n", (unsigned long long)n, dir.c_str());
+    return 0;
+}
+
 static int sample(bool as_text, const char* out_path, uint64_t max_positions) {
     FILE* out = as_text ? stdout : std::fopen(out_path, "wb");
     if (!out) { std::perror(out_path); return 1; }
@@ -102,6 +130,7 @@ int main(int argc, char** argv) {
     const std::string cmd = argc > 1 ? argv[1] : "";
     if (cmd == "convert" && argc == 4) return convert(argv[2], std::stoull(argv[3]));
     if (cmd == "shuffle" && argc >= 3) { for (int i = 2; i < argc; ++i) if (shuffle(argv[i])) return 1; return 0; }
+    if (cmd == "shard" && argc >= 4) return shard(argv[2], argc - 3, argv + 3);
     if (cmd == "text" && argc == 3) return sample(true, nullptr, std::stoull(argv[2]));
     if (cmd == "binary" && argc == 4) return sample(false, argv[2], std::stoull(argv[3]));
     std::fprintf(stderr, "usage: see header comment in tools/lichess_convert.cpp\n");
