@@ -112,23 +112,28 @@ void nnue_update(const Accumulator& parent, Accumulator& child, const Board& b) 
     }
 }
 
-// SCReLU sum as (x * w) * x: x * w fits int16 (|w| <= 127, checked at load), and one perspective's
-// N-term sum is at most N * 255 * 255 * 127 < 2^31 for N <= 256. Exact integers, same result as int64.
-static_assert(N <= 256, "int32 perspective sums need N <= 256");
-static int32_t screlu_dot(const int16_t* __restrict a, const int16_t* __restrict w) {
-    int32_t s = 0;
-    for (int i = 0; i < N; ++i) {
-        const int16_t x = std::clamp<int16_t>(a[i], 0, NNUE_QA);
-        s += int16_t(x * w[i]) * x;
+// SCReLU sum as (x * w) * x: x * w fits int16 (|w| <= 127, checked at load), and a 256-term block sums to at
+// most 256 * 255 * 255 * 127 < 2^31, so each block is exact in int32 (vectorisable); blocks add in int64.
+constexpr int DOT_BLOCK = N < 256 ? N : 256;
+static_assert(N % DOT_BLOCK == 0, "hidden size must be a multiple of 256 above 256");
+static int64_t screlu_dot(const int16_t* __restrict a, const int16_t* __restrict w) {
+    int64_t total = 0;
+    for (int b = 0; b < N; b += DOT_BLOCK) {
+        int32_t s = 0;
+        for (int i = b; i < b + DOT_BLOCK; ++i) {
+            const int16_t x = std::clamp<int16_t>(a[i], 0, NNUE_QA);
+            s += int16_t(x * w[i]) * x;
+        }
+        total += s;
     }
-    return s;
+    return total;
 }
 
 int nnue_evaluate(const Accumulator& acc, Color stm, int pieces) {
     constexpr int DIV = (32 + OB - 1) / OB;  // bullet MaterialCount<OB>: bucket = (pieces - 2) / ceil(32 / OB)
     const int ob = (pieces - 2) / DIV;
     const int16_t* w = W1 + ob * 2 * N;
-    const int64_t sum = int64_t(screlu_dot(acc.v[stm], w)) + screlu_dot(acc.v[~stm], w + N);
+    const int64_t sum = screlu_dot(acc.v[stm], w) + screlu_dot(acc.v[~stm], w + N);
     const int64_t out = sum / NNUE_QA + B1[ob];
     return int(out * NNUE_SCALE / (NNUE_QA * NNUE_QB));
 }
