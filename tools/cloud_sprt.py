@@ -14,9 +14,10 @@ def run(*cmd):
     return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout.strip()
 
 
-def gh_json(*args):  # None on a transient API error, so polling survives network hiccups
+def gh_json(*args, ok_empty=False):  # None on a transient API error, so polling survives network hiccups
     r = subprocess.run(("gh",) + args, capture_output=True, text=True)
-    return json.loads(r.stdout) if r.returncode == 0 else None
+    if r.returncode != 0: return None
+    return {} if ok_empty else json.loads(r.stdout)
 
 
 def find_run(title, tries=30):
@@ -56,9 +57,13 @@ def main():
         title = f"sprt {a.id} batch {b}"
         rid = find_run(title, tries=1)  # resuming: the batch may already be running
         if rid is None:
-            run("gh", "workflow", "run", "sprt-batch.yml", "-f", f"id={a.id}", "-f", f"batch={b}", "-f", f"dev={dev}",
-                "-f", f"base={base}", "-f", f"tc={a.tc}", "-f", f"rounds={a.rounds}", "-f", f"concurrency={a.concurrency}",
-                "-f", "jobs=" + json.dumps(list(range(1, a.jobs + 1))))
+            for _ in range(5):  # a failed dispatch call may still have gone through: check before retrying
+                if gh_json("workflow", "run", "sprt-batch.yml", "-f", f"id={a.id}", "-f", f"batch={b}", "-f", f"dev={dev}",
+                           "-f", f"base={base}", "-f", f"tc={a.tc}", "-f", f"rounds={a.rounds}",
+                           "-f", f"concurrency={a.concurrency}", "-f", "jobs=" + json.dumps(list(range(1, a.jobs + 1))),
+                           ok_empty=True) is not None or find_run(title, tries=6):
+                    break
+                time.sleep(60)
             rid = find_run(title) or sys.exit(f"run '{title}' did not appear")
             log(f"batch {b}: run {rid} dispatched ({a.jobs} jobs x {2 * a.rounds} games)")
         else:
