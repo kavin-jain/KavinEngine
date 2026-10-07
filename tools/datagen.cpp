@@ -1,10 +1,14 @@
 // Self-play training data with game results (WDL labels), in bullet's ChessBoard format.
-// Each game: 8-9 random plies from the start position, rejected if a quick search finds it unbalanced, then
+// Each game: 8-9 random plies from the start position (or 4-5 from a random line of an EPD book), rejected if a
+// quick search finds it unbalanced, then
 // fixed-node self-play. A position is recorded when the side to move is not in check, the chosen move is quiet
 // and the score is not a mate score (the usual filters: captures and checks make static labels noisy).
-// Usage: datagen <out.bin> <games> <seed> [nodes=5000]   (one process per core; seeds must differ)
+// Usage: datagen <out.bin> <games> <seed> [nodes=5000] [book.epd]   (one process per core; seeds must differ)
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
+#include <sstream>
+#include <string>
 #include <random>
 #include <utility>
 #include <vector>
@@ -18,11 +22,12 @@ constexpr int DRAW_SCORE = 10, DRAW_PLIES = 12, DRAW_MIN_PLY = 80;
 constexpr int OPENING_MAX_SCORE = 1000;
 
 std::mt19937_64 rng;
+std::vector<std::string> book;  // EPD lines (FEN fields only); empty: start position
 Board g_board;  // ~24 KB: static, not on the stack
 
 bool random_opening(Board& b) {
-    b.set_fen(START_FEN);
-    const int plies = 8 + int(rng() & 1);
+    b.set_fen(book.empty() ? std::string(START_FEN) : book[rng() % book.size()]);
+    const int plies = (book.empty() ? 8 : 4) + int(rng() & 1);
     for (int i = 0; i < plies; ++i) {
         MoveList l;
         generate(b, l, false);
@@ -65,11 +70,21 @@ size_t play_game(Board& b, uint64_t nodes, FILE* out) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    if (argc < 4) { std::fprintf(stderr, "usage: datagen <out.bin> <games> <seed> [nodes=5000]\n"); return 1; }
+    if (argc < 4) { std::fprintf(stderr, "usage: datagen <out.bin> <games> <seed> [nodes=5000] [book.epd]\n"); return 1; }
     const long games = std::atol(argv[2]);
     rng.seed(std::strtoull(argv[3], nullptr, 10));
     const uint64_t nodes = argc > 4 ? std::strtoull(argv[4], nullptr, 10) : 5000;
     engine_init();
+    if (argc > 5) {
+        std::ifstream f(argv[5]);
+        for (std::string line; std::getline(f, line);) {  // keep the four FEN fields; EPD opcodes may follow
+            std::istringstream ss(line);
+            std::string pieces, stm, castling, ep;
+            if (ss >> pieces >> stm >> castling >> ep) book.push_back(pieces + " " + stm + " " + castling + " " + ep + " 0 1");
+        }
+        if (book.empty()) { std::fprintf(stderr, "%s: no positions\n", argv[5]); return 1; }
+        std::fprintf(stderr, "book: %zu positions\n", book.size());
+    }
     FILE* out = std::fopen(argv[1], "ab");
     if (!out) { std::perror(argv[1]); return 1; }
     size_t total = 0;

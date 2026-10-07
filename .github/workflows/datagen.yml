@@ -11,6 +11,7 @@ on:
       minutes: {description: "generation time per job", default: "60"}
       nodes: {description: "search nodes per move", default: "5000"}
       jobs: {description: "JSON list of job numbers", default: "[1,2,3,4,5,6,7,8]"}
+      book: {description: "start positions: none (random 8-9 plies) or uho (UHO_Lichess_4852_v1 + 4-5 random plies)", default: "none"}
 
 permissions:
   contents: write  # release assets
@@ -28,11 +29,18 @@ jobs:
         with: {ref: "${{ inputs.ref }}"}
       - name: Build
         run: make -j4 -s datagen
+      - name: Fetch book (SHA-checked)
+        if: inputs.book == 'uho'
+        run: |
+          curl -sSL -o uho.zip https://github.com/official-stockfish/books/raw/master/UHO_Lichess_4852_v1.epd.zip
+          python3 -m zipfile -e uho.zip . && mv UHO_Lichess_4852_v1.epd book.epd
+          echo "7a7f6470615a69c6cf23d565417701d38732876f480af90d67b42abade35644a  book.epd" | sha256sum -c -
       - name: Generate
         run: |
           for i in $(seq 1 "$(nproc)"); do
             timeout -s INT "${{ inputs.minutes }}m" build/datagen "part$i.bin" 1000000000 \
-              $(( ${{ github.run_id }} * 1000 + ${{ matrix.job }} * 10 + i )) "${{ inputs.nodes }}" 2> "gen$i.log" &
+              $(( ${{ github.run_id }} * 1000 + ${{ matrix.job }} * 10 + i )) "${{ inputs.nodes }}" \
+              $([ "${{ inputs.book }}" = uho ] && echo book.epd) 2> "gen$i.log" &
           done
           wait
           for f in part*.bin; do s=$(stat -c %s "$f"); truncate -s $(( s / 32 * 32 )) "$f"; done  # drop a torn record
