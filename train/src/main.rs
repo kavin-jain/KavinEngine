@@ -1,9 +1,13 @@
-// Trains the (768x10hm -> N)x2 -> 1 SCReLU net on bulletformat shards (eval-only target: no game results exist).
+// Trains the (768x10hm -> N)x2 -> 1x8 SCReLU net on bulletformat shards (eval-only target: no game results exist).
 // Inputs: 10 king buckets, horizontally mirrored, plus a shared 768 "factoriser" folded into every bucket at save
 // time (bullet examples/progression/3_input_buckets.rs). The engine's src/nnue.cpp mirrors KB_LAYOUT exactly.
+// Output: 8 buckets by piece count (MaterialCount<8>, engine NNUE_OUTPUT_BUCKETS=8).
 // Usage: train <hidden: 128|256> <superbatches> <net_id> <data_dir> [measure]
 use bullet_lib::{
-    game::inputs::{ChessBucketsMirrored, get_num_buckets},
+    game::{
+        inputs::{ChessBucketsMirrored, get_num_buckets},
+        outputs::MaterialCount,
+    },
     nn::{InitSettings, Shape, optimiser::AdamW},
     trainer::{
         save::SavedFormat,
@@ -25,6 +29,7 @@ const KB_LAYOUT: [usize; 32] = [
     9, 9, 9, 9,
 ];
 const NUM_KB: usize = get_num_buckets(&KB_LAYOUT);
+const NUM_OB: usize = 8;
 const SCALE: i32 = 400;
 const QA: i16 = 255;
 const QB: i16 = 64;
@@ -53,6 +58,7 @@ fn main() {
         .dual_perspective()
         .optimiser(AdamW)
         .inputs(ChessBucketsMirrored::new(KB_LAYOUT))
+        .output_buckets(MaterialCount::<NUM_OB>)
         .save_format(&[
             SavedFormat::id("l0w")
                 .transform(|store, weights| {
@@ -62,18 +68,18 @@ fn main() {
                 .round()
                 .quantise::<i16>(QA),
             SavedFormat::id("l0b").round().quantise::<i16>(QA),
-            SavedFormat::id("l1w").round().quantise::<i16>(QB),
+            SavedFormat::id("l1w").round().quantise::<i16>(QB).transpose(),  // [bucket][2N]
             SavedFormat::id("l1b").round().quantise::<i16>(QA * QB),
         ])
         .loss_fn(|output, target| output.sigmoid().squared_error(target))
-        .build(|builder, stm_inputs, ntm_inputs| {
+        .build(|builder, stm_inputs, ntm_inputs, output_buckets| {
             let l0f = builder.new_weights("l0f", Shape::new(hidden, 768), InitSettings::Zeroed);
             let mut l0 = builder.new_affine("l0", 768 * NUM_KB, hidden);
             l0.weights = l0.weights + l0f.repeat(NUM_KB);
-            let l1 = builder.new_affine("l1", 2 * hidden, 1);
+            let l1 = builder.new_affine("l1", 2 * hidden, NUM_OB);
             let stm_hidden = l0.forward(stm_inputs).screlu();
             let ntm_hidden = l0.forward(ntm_inputs).screlu();
-            l1.forward(stm_hidden.concat(ntm_hidden))
+            l1.forward(stm_hidden.concat(ntm_hidden)).select(output_buckets)
         });
 
     let schedule = TrainingSchedule {
