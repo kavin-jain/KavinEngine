@@ -24,6 +24,7 @@ struct Searcher {
     int seldepth;
     Move killers[MAX_PLY][2];
     int16_t history[2][64][64];
+    int16_t capt_hist[12][64][6];  // [moving piece][to][captured type; KING = promotion without capture]
     Move pv[MAX_PLY][MAX_PLY];
     int pv_len[MAX_PLY];
     uint8_t lmr[64][64];
@@ -46,6 +47,11 @@ bool should_stop() {
     return S.stopped;
 }
 
+int16_t& capt_entry(Move m) {  // call with the board at the node, before make()
+    const int victim = flags_of(m) == EP_CAPTURE ? PAWN : is_capture(m) ? int(type_of(S.board.mailbox[to_sq(m)])) : KING;
+    return S.capt_hist[S.board.mailbox[from_sq(m)]][to_sq(m)][victim];
+}
+
 void score_moves(const MoveList& list, int16_t* scores, Move tt_move, int ply) {
     for (int i = 0; i < list.size; ++i) {
         const Move m = list.moves[i];
@@ -54,7 +60,8 @@ void score_moves(const MoveList& list, int16_t* scores, Move tt_move, int ply) {
             int victim = flags_of(m) == EP_CAPTURE ? PAWN : is_capture(m) ? int(type_of(S.board.mailbox[to_sq(m)])) : 0;
             int attacker = type_of(S.board.mailbox[from_sq(m)]);
             int promo = is_promo(m) && promo_type(m) == QUEEN ? 64 : 0;
-            scores[i] = int16_t((see_ge(S.board, m, 0) ? 20000 : -30000) + victim * 8 - attacker + promo);  // losing captures after quiets
+            // MVV first; capture history (+-512) can overrule one victim step. Losing captures go after quiets.
+            scores[i] = int16_t((see_ge(S.board, m, 0) ? 24000 : -30000) + victim * 256 - attacker + promo + capt_entry(m) / 32);
         } else if (m == S.killers[ply][0]) scores[i] = 19000;
         else if (m == S.killers[ply][1]) scores[i] = 18999;
         else scores[i] = S.history[S.board.stm][from_sq(m)][to_sq(m)];  // bounded to +-16384
@@ -69,10 +76,8 @@ Move pick(MoveList& list, int16_t* scores, int i) {  // selection sort, one step
     return list.moves[i];
 }
 
-void update_history(Move m, int bonus) {  // "gravity": keeps values within +-16384
-    int16_t& h = S.history[S.board.stm][from_sq(m)][to_sq(m)];
-    h = int16_t(h + bonus - h * std::abs(bonus) / 16384);
-}
+void gravity(int16_t& h, int bonus) { h = int16_t(h + bonus - h * std::abs(bonus) / 16384); }  // keeps |h| <= 16384
+void update_history(Move m, int bonus) { gravity(S.history[S.board.stm][from_sq(m)][to_sq(m)], bonus); }
 
 int qsearch(int alpha, int beta, int ply) {
     ++S.nodes;
@@ -155,8 +160,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
     generate(S.board, list, false);
     int16_t scores[MAX_MOVES];
     score_moves(list, scores, tt_move, ply);
-    Move quiets[64];
-    int n_quiets = 0, legal = 0, best = -INF;
+    Move quiets[64], captures[32];
+    int n_quiets = 0, n_captures = 0, legal = 0, best = -INF;
     const int alpha0 = alpha;
     Move best_move = NO_MOVE;
     for (int i = 0; i < list.size; ++i) {
@@ -192,17 +197,19 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
                 for (int j = ply + 1; j < S.pv_len[ply + 1]; ++j) S.pv[ply][j] = S.pv[ply + 1][j];
                 S.pv_len[ply] = std::max(S.pv_len[ply + 1], ply + 1);
                 if (score >= beta) {
+                    const int bonus = std::min(depth * depth, 1200);
                     if (quiet) {
                         if (S.killers[ply][0] != m) { S.killers[ply][1] = S.killers[ply][0]; S.killers[ply][0] = m; }
-                        const int bonus = std::min(depth * depth, 1200);
                         update_history(m, bonus);
                         for (int q = 0; q < n_quiets; ++q) update_history(quiets[q], -bonus);
-                    }
+                    } else gravity(capt_entry(m), bonus);
+                    for (int q = 0; q < n_captures; ++q) gravity(capt_entry(captures[q]), -bonus);
                     break;
                 }
             }
         }
         if (quiet && n_quiets < 64) quiets[n_quiets++] = m;
+        else if (!quiet && n_captures < 32) captures[n_captures++] = m;
     }
     if (legal == 0) return in_check ? -MATE + ply : 0;
     g_tt.store(S.board.key, best_move, score_to_tt(best, ply), depth,
@@ -243,6 +250,7 @@ void search_init() {
 void clear_search_state() {
     g_tt.clear();
     std::memset(S.history, 0, sizeof S.history);
+    std::memset(S.capt_hist, 0, sizeof S.capt_hist);
     std::memset(S.killers, 0, sizeof S.killers);
 }
 
