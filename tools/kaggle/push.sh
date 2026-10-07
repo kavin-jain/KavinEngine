@@ -14,6 +14,6 @@ sed -e "s/__REF__/$ref/" -e "s|__JOBS__|[$jobs]|" tools/kaggle/train.py > "$out/
 cat > "$out/kernel-metadata.json" <<META
 {"id": "kavinjain/kavinengine-train", "title": "kavinengine-train", "code_file": "train.py", "language": "python",
  "kernel_type": "script", "is_private": true, "enable_gpu": true, "enable_internet": true,
- "dataset_sources": ["kavinjain/kavinengine-lichess"], "competition_sources": [], "kernel_sources": []}
+ "dataset_sources": [], "competition_sources": [], "kernel_sources": []}
 META
 .deps/kaggle-venv/bin/kaggle kernels push -p "$out"

@@ -25,8 +25,17 @@ print("libcuda:", libcuda, flush=True)
 sh(f"git clone -q https://github.com/kavin-jain/KavinEngine /tmp/ke && git -C /tmp/ke checkout -q {REF}")
 T = "/tmp/ke/train"
 sh(f"cd {T} && cargo build -q --release --no-default-features --features cuda")
-# The mount path of an attached dataset varies across Kaggle images: locate it by its val.bin.
-LICHESS = os.path.dirname(glob.glob("/kaggle/input/**/val.bin", recursive=True)[0])
+# Training data comes from a public release: Kaggle refuses GPU sessions with the 7 GB dataset attached
+# (probed 2026-10-07: GPU alone and dataset alone both run, together they fail with an empty log).
+def fetch_release(tag, names):  # direct download URLs: no GitHub API rate limit on shared Kaggle IPs
+    d = f"/tmp/{tag}"
+    os.makedirs(d, exist_ok=True)
+    urls = " ".join(f"https://github.com/kavin-jain/KavinEngine/releases/download/{tag}/{n}" for n in names)
+    sh(f"cd {d} && printf '%s\\n' {urls} | xargs -n1 -P8 curl -sSfLO && du -sh .")
+    return d
+
+
+LICHESS = fetch_release("data-lichess-v1", [f"train_{i:02d}.bin" for i in range(32)] + ["val.bin"])
 print("lichess data:", LICHESS, flush=True)
 for net, hidden, sbs, wdl, data in JOBS:
     data = LICHESS if data == "lichess" else data
