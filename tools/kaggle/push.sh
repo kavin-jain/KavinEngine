@@ -8,7 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 ref=$(git rev-parse "$1"); shift
 jobs=""
-for j in "$@"; do read -r net hidden sbs wdl <<< "$j"; jobs+="(\"$net\", $hidden, $sbs, $wdl, \"/kaggle/input/kavinengine-lichess\"), "; done
+for j in "$@"; do read -r net hidden sbs wdl <<< "$j"; jobs+="(\"$net\", $hidden, $sbs, $wdl, \"lichess\"), "; done
 out=build/kaggle; mkdir -p "$out"
 sed -e "s/__REF__/$ref/" -e "s|__JOBS__|[$jobs]|" tools/kaggle/train.py > "$out/train.py"
 cat > "$out/kernel-metadata.json" <<META
