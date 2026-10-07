@@ -3,7 +3,7 @@
 import glob, os, shutil, subprocess
 
 REF = "__REF__"
-JOBS = __JOBS__  # [(net_id, hidden, superbatches, wdl, data_dir or "lichess")]
+JOBS = __JOBS__  # [(net_id, hidden, superbatches, wdl, data: "lichess"|"sp1", init checkpoint "<net>-<sb>" or "", lr)]
 
 
 def sh(cmd):
@@ -35,13 +35,33 @@ def fetch_release(tag, names):  # direct download URLs: no GitHub API rate limit
     return d
 
 
-LICHESS = fetch_release("data-lichess-v1", [f"train_{i:02d}.bin" for i in range(32)] + ["val.bin"])
-print("lichess data:", LICHESS, flush=True)
-for net, hidden, sbs, wdl, data in JOBS:
-    data = LICHESS if data == "lichess" else data
+def lichess():
+    return fetch_release("data-lichess-v1", [f"train_{i:02d}.bin" for i in range(32)] + ["val.bin"])
+
+
+def selfplay(tag, jobs):  # datagen release (zstd, one file per job) -> shuffled train_NN.bin + val.bin
+    raw = fetch_release(f"data-{tag}", [f"{tag}-j{j}.bin.zst" for j in range(1, jobs + 1)])
+    sh("pip install -q zstandard")
+    import zstandard
+    for f in glob.glob(f"{raw}/*.zst"):
+        with open(f, "rb") as src, open(f[:-4], "wb") as dst:
+            zstandard.ZstdDecompressor().copy_stream(src, dst)
+        os.remove(f)
+    d = f"/tmp/{tag}"
+    os.makedirs(d, exist_ok=True)
+    sh(f"make -C /tmp/ke -s convert && /tmp/ke/build/lichess_convert shard {d} {raw}/*.bin && "
+       f"/tmp/ke/build/lichess_convert shuffle {d}/*.bin && rm -r {raw} && du -sh {d}")
+    return d
+
+
+DATA = {"lichess": lichess, "sp1": lambda: selfplay("sp1", 6)}
+ready = {}
+for net, hidden, sbs, wdl, data, init, lr in JOBS:
+    if data not in ready: ready[data] = DATA[data]()
     log = f"/kaggle/working/{net}.log"
+    env = f"WDL={wdl} LR={lr}" + (f" INIT={T}/checkpoints/{init}" if init else "")
     # Full log to a file; one line per superbatch to stdout, visible live via `kaggle kernels logs -f`.
-    sh(f"set -o pipefail; cd {T} && WDL={wdl} target/release/train {hidden} {sbs} {net} {data} 2>&1 | tee {log} | "
+    sh(f"set -o pipefail; cd {T} && {env} target/release/train {hidden} {sbs} {net} {ready[data]} 2>&1 | tee {log} | "
        f"stdbuf -oL tr '\\r' '\\n' | grep --line-buffered -a 'running loss'")
     shutil.copy(f"{T}/checkpoints/{net}-{sbs}/quantised.bin", f"/kaggle/working/{net}.bin")
     shutil.copy(f"{T}/checkpoints/{net}.evals.txt", f"/kaggle/working/{net}.evals.txt")
