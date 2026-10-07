@@ -1,0 +1,12 @@
+# Unit tests and the bench signature on every push (keeps test CPU off the developer's laptop).
+name: ci
+on: [push, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make -j4 -s test
+      - run: make -j4 -s && ./engine bench | tail -1
