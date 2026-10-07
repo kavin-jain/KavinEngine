@@ -7,7 +7,7 @@ on:
     inputs:
       id: {description: "gauntlet id", required: true}
       ref: {description: "engine commit", required: true}
-      anchors: {description: "JSON list of Stash tags", default: '["v21.0","v25.0","v27.0","v29.0","v31.0"]'}
+      anchors: {description: "JSON list of Stash tags", default: '["v27.0","v29.0","v33.0","v35.0","v37.0"]'}
       tc: {description: "time control", default: "60+0.6"}
       rounds: {description: "rounds per job (each round: 2 games vs every anchor)", default: "10"}
       concurrency: {description: "games at once per job", default: "3"}
@@ -53,15 +53,16 @@ jobs:
             git -C stash clean -fdxq && git -C stash checkout -qf "$t"
             sed -i 's/-Werror//' stash/src/Makefile  # old sources vs a newer compiler: warnings must not fail the build
             make -C stash/src -s -j4 > /dev/null && cp stash/src/stash-bot "stash-$t"
-            echo "stash-$t: $(printf 'uci\nquit\n' | ./stash-$t | grep '^id name')"
+            id=$(printf 'uci\nquit\n' | ./stash-$t | grep '^id name')
+            echo "stash-$t: $id"
+            # A tag whose binary reports another version (GitHub v31.0 says "v30.15") is not the CCRL-rated build: skip it.
+            case "$id" in *"${t#v}"*) echo "$t" >> anchors-ok.txt ;; *) echo "::warning::skipping $t: $id" ;; esac
           done
 
       - name: Play
         run: |
           args=""
-          for t in $(echo '${{ inputs.anchors }}' | python3 -c "import json,sys; print(' '.join(json.load(sys.stdin)))"); do
-            args="$args -engine cmd=./stash-$t name=Stash-$t"
-          done
+          for t in $(cat anchors-ok.txt); do args="$args -engine cmd=./stash-$t name=Stash-$t"; done
           ./fastchess-bin -engine cmd=ours/engine name=KavinEngine $args \
             -each tc=${{ inputs.tc }} option.Hash=16 -tournament gauntlet -seeds 1 \
             -openings file=8moves_v3.pgn format=pgn order=random -srand $(( ${{ github.run_id }} % 100000 * 100 + ${{ matrix.job }} )) \

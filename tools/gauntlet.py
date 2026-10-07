@@ -5,8 +5,10 @@ Results land in results/gauntlet/<id>/. Usage: tools/gauntlet.py ID REF [--tc 60
        tools/gauntlet.py --selftest"""
 import argparse, json, math, pathlib, subprocess, sys, time
 
-# CCRL Blitz (2'+1" on an i7-4770K), computerchess.org.uk/ccrl/404, list of 2026-10-03.
-ANCHORS = {"v21.0": 2713, "v25.0": 2933, "v27.0": 3049, "v29.0": 3128, "v31.0": 3208}
+# CCRL Blitz (2'+1" on an i7-4770K), computerchess.org.uk/ccrl/404, list of 2026-10-03. GitHub tag v31.0 (3208) is
+# left out: its binary reports "v30.15" and its changelog stops at v30.0, so it may not be the rated build.
+ANCHORS = {"v21.0": 2713, "v25.0": 2933, "v27.0": 3049, "v29.0": 3128, "v32.0": 3240, "v33.0": 3273,
+           "v34.0": 3315, "v35.0": 3345, "v36.0": 3374, "v37.0": 3417}
 
 
 def expected(d):
