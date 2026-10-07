@@ -1,7 +1,7 @@
 # PC build. OpenBench/CCRL convention: `make EXE=<path> EVALFILE=<net>`.
 EXE         ?= engine
-EVALFILE    ?= nets/m4-kb10-ob8-256.bin
-NNUE_HIDDEN ?= 256
+EVALFILE    ?= nets/m4-kb10-ob8-512.bin
+NNUE_HIDDEN ?= 512
 NNUE_KB     ?= 10
 NNUE_OB     ?= 8
 ARCH        := $(shell uname -m)
