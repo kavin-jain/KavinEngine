@@ -258,12 +258,24 @@ SearchResult search(const Board& root, const Limits& limits, bool verbose) {
             if (S.board.make(l.moves[i])) { S.board.unmake(l.moves[i]); res.best = l.moves[i]; }
     }
     if (res.best == NO_MOVE) return res;  // checkmated or stalemated at the root
+    int prev_score = 0;
     for (int d = 1; d <= limits.depth && d < MAX_PLY - 1; ++d) {
         S.seldepth = 0;
-        const int score = negamax(-INF, INF, d, 0, true);
+        int delta = 25, alpha = -INF, beta = INF;
+        if (d >= 4) { alpha = std::max(prev_score - delta, -INF); beta = std::min(prev_score + delta, INF); }
+        int score;
+        for (;;) {  // re-search with a wider window until the score lands inside it
+            score = negamax(alpha, beta, d, 0, true);
+            if (S.stopped) break;
+            if (score <= alpha) { beta = (alpha + beta) / 2; alpha = std::max(score - delta, -INF); }
+            else if (score >= beta) beta = std::min(score + delta, INF);
+            else break;
+            delta *= 2;
+        }
         const bool complete = !S.stopped;
         if (S.pv_len[0] > 0 && (complete || d == 1)) { res.best = S.pv[0][0]; res.score = score; res.depth = d; }
         if (!complete) break;
+        prev_score = score;
         if (verbose) print_info(d, score);
         if (S.budget.soft >= 0 && now_ms() - S.start >= S.budget.soft) break;
         if (limits.nodes && S.nodes >= limits.nodes) break;
