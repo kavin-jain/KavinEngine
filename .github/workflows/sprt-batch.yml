@@ -39,12 +39,12 @@ jobs:
           path: |
             fastchess-bin
             UHO_Lichess_4852_v1.epd
-          key: fastchess-a281caf-uho-7a7f6470
+          key: fastchess-a281caf-release-uho-7a7f6470  # release = -march=x86-64: runners differ in CPU model
       - name: Build fastchess (pinned) and fetch book (SHA-checked)
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           git clone -q https://github.com/Disservin/fastchess fc && git -C fc checkout -q a281caf
-          make -C fc -j4 > /dev/null && cp fc/fastchess fastchess-bin
+          make -C fc -j4 build=release > /dev/null && cp fc/fastchess fastchess-bin
           curl -sSL -o uho.zip https://github.com/official-stockfish/books/raw/master/UHO_Lichess_4852_v1.epd.zip
           python3 -m zipfile -e uho.zip .
           echo "7a7f6470615a69c6cf23d565417701d38732876f480af90d67b42abade35644a  UHO_Lichess_4852_v1.epd" | sha256sum -c -
