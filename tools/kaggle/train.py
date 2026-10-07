@@ -1,0 +1,26 @@
+# NNUE training on a Kaggle GPU, so no training runs on the Mac. tools/kaggle/push.sh fills in REF and JOBS,
+# then pushes this file as a private script kernel. Outputs (/kaggle/working): <net>.bin, <net>.evals.txt, <net>.log.
+import os, shutil, subprocess
+
+REF = "__REF__"
+JOBS = __JOBS__  # [(net_id, hidden, superbatches, wdl, data_dir)]
+
+
+def sh(cmd):
+    print("+", cmd, flush=True)
+    subprocess.run(cmd, shell=True, check=True, executable="/bin/bash")
+
+
+sh("nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv")
+sh("curl -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal")
+os.environ["PATH"] = os.path.expanduser("~/.cargo/bin") + ":" + os.environ["PATH"]
+os.environ.setdefault("CUDA_PATH", "/usr/local/cuda")
+sh(f"git clone -q https://github.com/kavin-jain/KavinEngine /tmp/ke && git -C /tmp/ke checkout -q {REF}")
+T = "/tmp/ke/train"
+sh(f"cd {T} && cargo build -q --release --no-default-features --features cuda")
+for net, hidden, sbs, wdl, data in JOBS:
+    log = f"/kaggle/working/{net}.log"
+    sh(f"cd {T} && WDL={wdl} target/release/train {hidden} {sbs} {net} {data} > {log} 2>&1; s=$?; "
+       f"tr '\\r' '\\n' < {log} | grep -a -E 'superbatch|loss' | grep -av Estimated | tail -n 5; exit $s")
+    shutil.copy(f"{T}/checkpoints/{net}-{sbs}/quantised.bin", f"/kaggle/working/{net}.bin")
+    shutil.copy(f"{T}/checkpoints/{net}.evals.txt", f"/kaggle/working/{net}.evals.txt")
