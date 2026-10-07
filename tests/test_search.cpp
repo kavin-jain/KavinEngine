@@ -19,7 +19,9 @@ TEST(finds_mate_in_one) {
 }
 
 TEST(finds_mate_in_two) {
-    SearchResult r = run("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 5);  // e.g. 1.Ra7 Kg8 2.Rb8#
+    // e.g. 1.Ra7 Kg8 2.Rb8#. The depth at which the mate appears depends on the net: a net that scores KRRvK at
+    // +1000 lets reverse futility cut the quiet mating line until depth 9 (the m2 net scored it +170: depth 3).
+    SearchResult r = run("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 10);
     CHECK_EQ(r.score, MATE - 3);
 }
 
