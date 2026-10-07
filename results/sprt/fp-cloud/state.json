@@ -1,0 +1,26 @@
+{
+ "dev": "71c800f69c7b4f6b8f6780eef61b929fad469c3e",
+ "base": "aa80cab76a4501e309e711add32175d4baafba1b",
+ "tc": "8+0.08",
+ "elo": [
+  0.0,
+  5.0
+ ],
+ "batches": 1,
+ "penta": [
+  5,
+  98,
+  290,
+  178,
+  29
+ ],
+ "wins": 351,
+ "losses": 223,
+ "draws": 626,
+ "games": 1200,
+ "time_losses": {
+  "new": 0,
+  "base": 0
+ },
+ "failed_jobs": 10
+}

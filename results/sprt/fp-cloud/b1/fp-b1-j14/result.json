@@ -1,0 +1,1 @@
+{"penta": [2, 14, 51, 28, 5], "wins": 58, "losses": 38, "draws": 104, "games": 200, "time_losses": {"new": 0, "base": 0}, "bench": "dev  5205601 nodes 4672891 nps\nbase 6750335 nodes 5052645 nps\n"}

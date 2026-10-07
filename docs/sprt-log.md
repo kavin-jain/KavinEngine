@@ -8,3 +8,5 @@ Every search/eval change, accepted or not. Method: `docs/testing.md` (fastchess,
 | 2026-10-07 | (RFP, two earlier runs) | Mac under load avg 20–32 from other jobs | **invalid** | 222 + 220 | — | — | 6589794 | `results/sprt/rfp-invalid-load*.{log,pgn.xz}` (base lost games on time) |
 | 2026-10-07 | Aspiration windows | Mac, 8+0.08, conc. 3 | **H1** [0, 5] | 658 (W237 D317 L104, 0 time losses) | +71.2 ± 16.1 | 2.96 | 6750335 | see commit |
 | 2026-10-07 | Late move pruning (3+d², checks kept) | Mac, 8+0.08, conc. 3 | **stopped early, not merged** | 1360 (W312 D715 L333, 0 time losses) | −5.3 ± 11.6 | −0.65 | 3697952 | `results/sprt/lmp.patch` (retry after continuation history) |
+| 2026-10-07 | Futility pruning (checks kept) | GitHub Actions, 8+0.08, 6 jobs × conc. 3 | **H1** [0, 5] | 1200 (W351 D626 L223, 0 time losses) | +37.2 ± 11.3 | 3.05 | 5205601 | see commit |
+| 2026-10-07 | (Futility, Mac partial run, superseded by the cloud run) | Mac, 8+0.08 | moved to cloud | 240 | — | 0.34 | 5205601 | `results/sprt/fp-mac-partial.*` |
