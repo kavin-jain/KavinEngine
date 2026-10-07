@@ -54,7 +54,7 @@ void score_moves(const MoveList& list, int16_t* scores, Move tt_move, int ply) {
             int victim = flags_of(m) == EP_CAPTURE ? PAWN : is_capture(m) ? int(type_of(S.board.mailbox[to_sq(m)])) : 0;
             int attacker = type_of(S.board.mailbox[from_sq(m)]);
             int promo = is_promo(m) && promo_type(m) == QUEEN ? 64 : 0;
-            scores[i] = int16_t(20000 + victim * 8 - attacker + promo);
+            scores[i] = int16_t((see_ge(S.board, m, 0) ? 20000 : -30000) + victim * 8 - attacker + promo);  // losing captures after quiets
         } else if (m == S.killers[ply][0]) scores[i] = 19000;
         else if (m == S.killers[ply][1]) scores[i] = 18999;
         else scores[i] = S.history[S.board.stm][from_sq(m)][to_sq(m)];  // bounded to +-16384
@@ -93,6 +93,7 @@ int qsearch(int alpha, int beta, int ply) {
     int legal = 0;
     for (int i = 0; i < list.size; ++i) {
         Move m = pick(list, scores, i);
+        if (!in_check && !see_ge(S.board, m, 0)) continue;  // a losing capture can't beat the stand-pat
         if (!S.board.make(m)) continue;
         if (nnue_ready()) nnue_update(S.acc[ply], S.acc[ply + 1], S.board);
         ++legal;
