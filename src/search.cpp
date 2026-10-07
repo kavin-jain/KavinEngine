@@ -162,6 +162,10 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
         const Move m = pick(list, scores, i);
         const bool quiet = !is_capture(m) && !is_promo(m);
         if (!S.board.make(m)) continue;
+        // Futility pruning: a quiet move cannot lift this static eval above alpha so close to the leaves.
+        // Checks are kept (they may mate), so the test runs after make().
+        if (!pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 6 && static_eval + 100 + 100 * depth <= alpha
+            && !S.board.in_check()) { S.board.unmake(m); continue; }
         if (nnue_ready()) nnue_update(S.acc[ply], S.acc[ply + 1], S.board);
         ++legal;
         const int new_depth = depth - 1;
