@@ -11,3 +11,4 @@ Every search/eval change, accepted or not. Method: `docs/testing.md` (fastchess,
 | 2026-10-07 | Futility pruning (checks kept) | GitHub Actions, 8+0.08, 6 jobs × conc. 3 | **H1** [0, 5] | 1200 (W351 D626 L223, 0 time losses) | +37.2 ± 11.3 | 3.05 | 5205601 | see commit |
 | 2026-10-07 | (Futility, Mac partial run, superseded by the cloud run) | Mac, 8+0.08 | moved to cloud | 240 | — | 0.34 | 5205601 | `results/sprt/fp-mac-partial.*` |
 | 2026-10-07 | SEE: qsearch pruning + capture ordering | GitHub Actions, 8+0.08, 16 jobs × conc. 3 | **H1** [0, 5] | 3200 (W922 D1677 L601, 0 time losses) | +35.0 ± 7.1 | 7.29 | 4822270 | see commit |
+| 2026-10-07 | Late move pruning, retest on top of futility (3+d², checks kept) | GitHub Actions, 8+0.08, 8 jobs × conc. 3 | **H0** [0, 5] | 3200 (W650 D1678 L872, 0 time losses) | −24.1 ± 7.3 | −5.53 | 3348718 | branch `test/lmp2` (parked; base predates SEE ordering) |

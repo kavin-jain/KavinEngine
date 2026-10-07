@@ -1,0 +1,6 @@
+batch 1: run 37584120644 dispatched (8 jobs x 200 games)
+bench (job 1): dev  3348718 nodes 2486056 nps | base 5205601 nodes 3278086 nps | 
+batch 1: games 1600 W335 D835 L430 Ptnml [33, 228, 359, 161, 19] Elo -20.7 ± 10.3 nElo -34.1 LLR -2.40 (-2.94, 2.94) [0.0, 5.0] time losses new 0 base 0 failed jobs 0
+batch 2: run 37590418015 dispatched (8 jobs x 200 games)
+batch 2: games 3200 W650 D1678 L872 Ptnml [72, 459, 725, 307, 37] Elo -24.1 ± 7.3 nElo -39.8 LLR -5.53 (-2.94, 2.94) [0.0, 5.0] time losses new 0 base 0 failed jobs 0
+RESULT lmp2: H0 accepted after 3200 games, Elo -24.1 ± 7.3, LLR -5.53
