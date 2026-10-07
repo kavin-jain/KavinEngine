@@ -1,0 +1,4 @@
+batch 1: run 37579784434 dispatched (2 jobs x 20 games)
+bench (job 1): dev  6750335 nodes 7653441 nps | base 6589794 nodes 7891968 nps | 
+batch 1: games 40 W20 D16 L4 Ptnml [0, 1, 6, 9, 4] Elo +147.2 ± 75.4 nElo +241.9 LLR 0.25 (-2.94, 2.94) [0.0, 5.0] time losses new 0 base 0 failed jobs 0
+RESULT smoke: inconclusive (game cap) after 40 games, Elo +147.2 ± 75.4, LLR 0.25

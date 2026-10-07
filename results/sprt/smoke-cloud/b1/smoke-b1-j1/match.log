@@ -1,0 +1,51 @@
+Indexing opening suite...
+Started game 1 of 20 (new vs base)
+Started game 2 of 20 (base vs new)
+Started game 3 of 20 (new vs base)
+Finished game 2 (base vs new): 1/2-1/2 {Draw by 3-fold repetition}
+Started game 4 of 20 (base vs new)
+Finished game 1 (new vs base): 1-0 {White mates}
+Started game 5 of 20 (new vs base)
+Finished game 3 (new vs base): 1-0 {White mates}
+Started game 6 of 20 (base vs new)
+Finished game 4 (base vs new): 1/2-1/2 {Draw by 3-fold repetition}
+Started game 7 of 20 (new vs base)
+Finished game 6 (base vs new): 0-1 {Black mates}
+Started game 8 of 20 (base vs new)
+Finished game 5 (new vs base): 1/2-1/2 {Draw by fifty moves rule}
+Started game 9 of 20 (new vs base)
+Finished game 7 (new vs base): 1-0 {White mates}
+Started game 10 of 20 (base vs new)
+Finished game 8 (base vs new): 0-1 {Black mates}
+Started game 11 of 20 (new vs base)
+Finished game 9 (new vs base): 0-1 {Black mates}
+Started game 12 of 20 (base vs new)
+Finished game 11 (new vs base): 1/2-1/2 {Draw by 3-fold repetition}
+Started game 13 of 20 (new vs base)
+Finished game 10 (base vs new): 0-1 {Black mates}
+Started game 14 of 20 (base vs new)
+Finished game 12 (base vs new): 1/2-1/2 {Draw by fifty moves rule}
+Started game 15 of 20 (new vs base)
+Finished game 14 (base vs new): 1/2-1/2 {Draw by 3-fold repetition}
+Started game 16 of 20 (base vs new)
+Finished game 13 (new vs base): 1-0 {White mates}
+Started game 17 of 20 (new vs base)
+Finished game 15 (new vs base): 1-0 {White mates}
+Started game 18 of 20 (base vs new)
+Finished game 16 (base vs new): 0-1 {Black mates}
+Started game 19 of 20 (new vs base)
+Finished game 17 (new vs base): 1/2-1/2 {Draw by 3-fold repetition}
+Started game 20 of 20 (base vs new)
+Finished game 18 (base vs new): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 19 (new vs base): 1-0 {White mates}
+Finished game 20 (base vs new): 1/2-1/2 {Draw by 3-fold repetition}
+--------------------------------------------------
+Results of new vs base (8+0.08, NULL, 16MB, UHO_Lichess_4852_v1.epd):
+Elo: 168.40 +/- 98.63, nElo: 315.87 +/- 152.27
+LOS: 100.00 %, DrawRatio: 30.00 %, PairsRatio: inf
+Games: 20, Wins: 10, Losses: 1, Draws: 9, Points: 14.5 (72.50 %)
+Ptnml(0-2): [0, 0, 3, 5, 2], WL/DD Ratio: 0.50
+--------------------------------------------------
+Finished match
+Total Time: 00:02:59 (hours:minutes:seconds)
+
