@@ -79,8 +79,20 @@ int qsearch(int alpha, int beta, int ply) {
     if (should_stop()) return 0;
     if (ply > S.seldepth) S.seldepth = ply;
     if (ply >= MAX_PLY - 1) return eval_at(ply);
+    const bool pv_node = beta - alpha > 1;
+    TTEntry tte;
+    Move tt_move = NO_MOVE;
+    const bool tt_hit = g_tt.probe(S.board.key, tte);
+    if (tt_hit) {
+        tt_move = tte.move;
+        const int s = score_from_tt(tte.score, ply);
+        if (!pv_node && (tte.bound == BOUND_EXACT || (tte.bound == BOUND_LOWER && s >= beta) || (tte.bound == BOUND_UPPER && s <= alpha)))
+            return s;
+    }
     const bool in_check = S.board.in_check();
+    const int alpha0 = alpha;
     int best = -INF;
+    Move best_move = NO_MOVE;
     if (!in_check) {  // stand pat
         best = eval_at(ply);
         if (best >= beta) return best;
@@ -89,7 +101,7 @@ int qsearch(int alpha, int beta, int ply) {
     MoveList list;
     generate(S.board, list, !in_check);  // in check: all evasions
     int16_t scores[MAX_MOVES];
-    score_moves(list, scores, NO_MOVE, ply);
+    score_moves(list, scores, tt_move, ply);
     int legal = 0;
     for (int i = 0; i < list.size; ++i) {
         Move m = pick(list, scores, i);
@@ -102,10 +114,14 @@ int qsearch(int alpha, int beta, int ply) {
         if (S.stopped) return 0;
         if (score > best) {
             best = score;
+            best_move = m;
             if (score > alpha) { alpha = score; if (score >= beta) break; }
         }
     }
     if (in_check && legal == 0) return -MATE + ply;
+    if (!tt_hit || tte.depth == 0)  // depth-0 entries never overwrite a main-search entry for this position
+        g_tt.store(S.board.key, best_move, score_to_tt(best, ply), 0,
+                   best >= beta ? BOUND_LOWER : best > alpha0 ? BOUND_EXACT : BOUND_UPPER);
     return best;
 }
 
