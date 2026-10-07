@@ -7,3 +7,4 @@ Every search/eval change, accepted or not. Method: `docs/testing.md` (fastchess,
 | 2026-10-07 | Reverse futility pruning | Mac, 8+0.08, conc. 3 | **H1** [0, 5] | 558 (W238 D254 L66, 0 time losses) | +110.7 ± 20.0 | 2.95 | 6589794 | see commit |
 | 2026-10-07 | (RFP, two earlier runs) | Mac under load avg 20–32 from other jobs | **invalid** | 222 + 220 | — | — | 6589794 | `results/sprt/rfp-invalid-load*.{log,pgn.xz}` (base lost games on time) |
 | 2026-10-07 | Aspiration windows | Mac, 8+0.08, conc. 3 | **H1** [0, 5] | 658 (W237 D317 L104, 0 time losses) | +71.2 ± 16.1 | 2.96 | 6750335 | see commit |
+| 2026-10-07 | Late move pruning (3+d², checks kept) | Mac, 8+0.08, conc. 3 | **stopped early, not merged** | 1360 (W312 D715 L333, 0 time losses) | −5.3 ± 11.6 | −0.65 | 3697952 | `results/sprt/lmp.patch` (retry after continuation history) |
