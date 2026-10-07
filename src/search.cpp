@@ -10,6 +10,10 @@
 #include "platform.h"
 
 TT g_tt;
+#ifndef CORRHIST_SIZE
+#define CORRHIST_SIZE 16384  // entries per side; ESP32 builds use a smaller table
+#endif
+static_assert((CORRHIST_SIZE & (CORRHIST_SIZE - 1)) == 0, "CORRHIST_SIZE must be a power of two");
 std::atomic<bool> g_stop{false};
 
 namespace {
@@ -29,12 +33,24 @@ struct Searcher {
     uint8_t lmr[64][64];
     Accumulator acc[MAX_PLY + 1];  // acc[ply] matches the board at that ply
     int eval_stack[MAX_PLY + 1];   // static eval per ply (-INF when in check)
+    int16_t corr[2][CORRHIST_SIZE];  // pawn-structure correction history, scaled by 256
 };
 Searcher S;  // static storage: these arrays must not live on the small ESP32 task stack
 
 int eval_at(int ply) {
     const int e = nnue_ready() ? nnue_evaluate(S.acc[ply], S.board.stm) : evaluate(S.board);
     return std::clamp(e, -MATE_BOUND + 1, MATE_BOUND - 1);
+}
+
+// Static-evaluation correction history (chessprogramming.org "Static Evaluation Correction History"):
+// learns how far the eval misjudges positions with this pawn structure, from search results.
+unsigned pawn_index(const Board& b) {
+    const uint64_t k = b.pieces[make_piece(WHITE, PAWN)] * 0x9E3779B97F4A7C15ull ^ b.pieces[make_piece(BLACK, PAWN)] * 0xC2B2AE3D27D4EB4Full;
+    return unsigned(k >> 40) & (CORRHIST_SIZE - 1);
+}
+
+int corrected(int raw) {
+    return std::clamp(raw + S.corr[S.board.stm][pawn_index(S.board)] / 256, -MATE_BOUND + 1, MATE_BOUND - 1);
 }
 
 bool should_stop() {
@@ -82,7 +98,7 @@ int qsearch(int alpha, int beta, int ply) {
     const bool in_check = S.board.in_check();
     int best = -INF;
     if (!in_check) {  // stand pat
-        best = eval_at(ply);
+        best = corrected(eval_at(ply));
         if (best >= beta) return best;
         if (best > alpha) alpha = best;
     }
@@ -133,7 +149,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
             return s;
     }
 
-    const int static_eval = in_check ? -INF : eval_at(ply);
+    const int raw_eval = in_check ? -INF : eval_at(ply);
+    const int static_eval = in_check ? -INF : corrected(raw_eval);
     S.eval_stack[ply] = static_eval;
 
     // Reverse futility pruning: this far above beta near the leaves, assume the node fails high.
@@ -205,6 +222,13 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
         if (quiet && n_quiets < 64) quiets[n_quiets++] = m;
     }
     if (legal == 0) return in_check ? -MATE + ply : 0;
+    // Learn from the search result unless the bound says nothing about the eval's error.
+    if (!in_check && (best_move == NO_MOVE || !is_capture(best_move)) && std::abs(best) < MATE_BOUND
+        && !(best >= beta && best <= static_eval) && !(best <= alpha0 && best >= static_eval)) {
+        int16_t& c = S.corr[S.board.stm][pawn_index(S.board)];
+        const int w = std::min(depth + 1, 16);
+        c = int16_t(std::clamp((c * (256 - w) + (best - raw_eval) * 256 * w) / 256, -256 * 32, 256 * 32));
+    }
     g_tt.store(S.board.key, best_move, score_to_tt(best, ply), depth,
                best >= beta ? BOUND_LOWER : best > alpha0 ? BOUND_EXACT : BOUND_UPPER);
     return best;
@@ -244,6 +268,7 @@ void clear_search_state() {
     g_tt.clear();
     std::memset(S.history, 0, sizeof S.history);
     std::memset(S.killers, 0, sizeof S.killers);
+    std::memset(S.corr, 0, sizeof S.corr);
 }
 
 SearchResult search(const Board& root, const Limits& limits, bool verbose) {
