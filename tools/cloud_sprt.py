@@ -66,8 +66,11 @@ def main():
         while (gh_json("run", "view", str(rid), "--json", "status") or {}).get("status") != "completed":
             time.sleep(60)
         bdir = out / f"b{b}"
-        subprocess.run(["gh", "run", "download", str(rid), "-D", str(bdir)], check=False, capture_output=True)
-        results = sorted(bdir.glob("*/result.json"))
+        for _ in range(5):  # artifact downloads fail transiently, like other gh calls
+            subprocess.run(["gh", "run", "download", str(rid), "-D", str(bdir)], check=False, capture_output=True)
+            results = sorted(bdir.glob("*/result.json"))
+            if results: break
+            time.sleep(60)
         st["failed_jobs"] += a.jobs - len(results)
         if not results:
             sys.exit(f"batch {b}: no job produced results; see gh run view {rid} --log-failed")
