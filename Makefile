@@ -1,9 +1,9 @@
 # PC build. OpenBench/CCRL convention: `make EXE=<path> EVALFILE=<net>`.
 EXE         ?= engine
-EVALFILE    ?= nets/m3-kb10-256.bin
+EVALFILE    ?= nets/wb-ft-w3.bin
 NNUE_HIDDEN ?= 256
 NNUE_KB     ?= 10
-NNUE_OB     ?= 1
+NNUE_OB     ?= 8
 ARCH        := $(shell uname -m)
 ifeq ($(ARCH),arm64)
   NATIVE := -mcpu=native
