@@ -52,7 +52,8 @@ jobs:
           for t in $(echo '${{ inputs.anchors }}' | python3 -c "import json,sys; print(' '.join(json.load(sys.stdin)))"); do
             git -C stash clean -fdxq && git -C stash checkout -qf "$t"
             sed -i 's/-Werror//' stash/src/Makefile  # old sources vs a newer compiler: warnings must not fail the build
-            make -C stash/src -s -j4 > /dev/null && cp stash/src/stash-bot "stash-$t"
+            make -C stash/src -s -j4 > /dev/null || { echo "::warning::skipping $t: build failed"; continue; }
+            cp "$(ls stash/src/stash-bot stash/src/stash 2> /dev/null | head -1)" "stash-$t"  # renamed to "stash" in v37
             id=$(printf 'uci\nquit\n' | ./stash-$t | grep '^id name')
             echo "stash-$t: $id"
             # A tag whose binary reports another version (GitHub v31.0 says "v30.15") is not the CCRL-rated build: skip it.
