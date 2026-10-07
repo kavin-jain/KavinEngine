@@ -15,6 +15,7 @@ TT g_tt;
 #endif
 static_assert((CORRHIST_SIZE & (CORRHIST_SIZE - 1)) == 0, "CORRHIST_SIZE must be a power of two");
 std::atomic<bool> g_stop{false};
+int g_move_overhead = 50;
 
 namespace {
 
@@ -255,12 +256,14 @@ void print_info(int depth, int score) {
 }  // namespace
 
 TimeBudget compute_budget(const Limits& l, Color us) {
-    const int64_t overhead = 50;
+    const int64_t overhead = g_move_overhead;
     if (l.movetime > 0) { int64_t t = std::max<int64_t>(1, l.movetime - overhead); return {t, t}; }
     if (l.infinite || l.time[us] < 0) return {-1, -1};
     const int64_t t = l.time[us], inc = l.inc[us];
     int64_t soft = (l.movestogo > 0 ? t / (l.movestogo + 1) : t / 20) + inc / 2;
-    int64_t hard = std::max<int64_t>(1, std::min(3 * soft, t - overhead));
+    // The soft limit is only checked between iterations, so a move can run to the hard limit. Cap that at a quarter of
+    // the clock and keep the overhead in reserve: without it, lag flagged the Lichess bot in 5 of 8 games (2026-10-08).
+    int64_t hard = std::max<int64_t>(1, std::min({3 * soft, t / 4, t - overhead}));
     return {std::min(soft, hard), hard};
 }
 

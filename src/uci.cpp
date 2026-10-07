@@ -137,6 +137,8 @@ void set_option(std::istringstream& ss) {
             write_line("info string hash allocation failed, using default size");
             g_tt.resize(TT_DEFAULT_BYTES, TT_FAST);
         }
+    } else if (name == "Move Overhead") {
+        g_move_overhead = int(std::clamp(std::strtol(value.c_str(), nullptr, 10), 0L, 5000L));
     }
 }
 
@@ -173,6 +175,7 @@ bool uci_command(const std::string& raw) {
         write_line("id name " ENGINE_NAME);
         write_line("id author Kavin Jain");
         write_line("option name Hash type spin default " + std::to_string(std::max(1u, unsigned(TT_DEFAULT_BYTES >> 20))) + " min 1 max 4096");
+        write_line("option name Move Overhead type spin default 50 min 0 max 5000");
         write_line("uciok");
     } else if (cmd == "isready") write_line("readyok");
     else if (cmd == "ucinewgame") { stop_search(); clear_search_state(); }
