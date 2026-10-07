@@ -153,8 +153,13 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
     const int static_eval = in_check ? -INF : corrected(raw_eval);
     S.eval_stack[ply] = static_eval;
 
-    // Reverse futility pruning: this far above beta near the leaves, assume the node fails high.
-    if (!pv_node && !in_check && depth <= 8 && std::abs(beta) < MATE_BOUND && static_eval - 80 * depth >= beta)
+    // Improving: our static eval rose since our previous move (2 plies back; 4 if we were in check then).
+    const bool improving = !in_check && ply >= 2 &&
+        (S.eval_stack[ply - 2] != -INF ? static_eval > S.eval_stack[ply - 2] : ply < 4 || static_eval > S.eval_stack[ply - 4]);
+
+    // Reverse futility pruning: this far above beta near the leaves, assume the node fails high
+    // (a smaller margin when improving: the eval is trending up, so the cut is safer).
+    if (!pv_node && !in_check && depth <= 8 && std::abs(beta) < MATE_BOUND && static_eval - 80 * (depth - improving) >= beta)
         return static_eval;
 
     // Null-move pruning: if passing still fails high, this node is very likely a cut-node.
