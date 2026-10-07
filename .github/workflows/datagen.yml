@@ -1,5 +1,6 @@
 # Self-play training data (tools/datagen.cpp): every job runs one datagen process per core for a fixed time
-# and uploads the concatenated records. Seeds come from the run id, so reruns never repeat games.
+# and uploads the concatenated records (zstd) to the public release data-<id>, where a GPU trainer can fetch
+# them by URL. Seeds come from the run id, so reruns never repeat games.
 name: datagen
 run-name: "datagen ${{ inputs.id }}"
 on:
@@ -12,7 +13,7 @@ on:
       jobs: {description: "JSON list of job numbers", default: "[1,2,3,4,5,6,7,8]"}
 
 permissions:
-  contents: read
+  contents: write  # release assets
 
 jobs:
   gen:
@@ -35,10 +36,12 @@ jobs:
           done
           wait
           for f in part*.bin; do s=$(stat -c %s "$f"); truncate -s $(( s / 32 * 32 )) "$f"; done  # drop a torn record
-          cat part*.bin > data.bin && rm part*.bin
-          tail -qn1 gen*.log; ls -l data.bin
-      - uses: actions/upload-artifact@v4
-        with:
-          name: "${{ inputs.id }}-j${{ matrix.job }}"
-          path: data.bin
-          retention-days: 7
+          cat part*.bin > "${{ inputs.id }}-j${{ matrix.job }}.bin" && rm part*.bin
+          tail -qn1 gen*.log
+          zstd -q -T0 -10 --rm "${{ inputs.id }}-j${{ matrix.job }}.bin" && ls -l *.zst
+      - name: Upload to release data-${{ inputs.id }}
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: |
+          gh release create "data-${{ inputs.id }}" --target "${{ inputs.ref }}" --title "Self-play data ${{ inputs.id }}" \
+            --notes "tools/datagen.cpp output at ${{ inputs.nodes }} nodes/move (bullet ChessBoard records, zstd)." 2>/dev/null || true
+          gh release upload "data-${{ inputs.id }}" *.zst --clobber
