@@ -179,11 +179,17 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
     for (int i = 0; i < list.size; ++i) {
         const Move m = pick(list, scores, i);
         const bool quiet = !is_capture(m) && !is_promo(m);
+        // SEE pruning: near the leaves, skip captures that lose material by force...
+        if (!pv_node && !in_check && !quiet && best > -MATE_BOUND && depth <= 8 && !see_ge(S.board, m, -20 * depth * depth))
+            continue;
+        // ...and quiet moves that hang the moved piece (decided below, after make(), so checks are kept).
+        const bool quiet_hangs = quiet && !pv_node && !in_check && best > -MATE_BOUND && depth <= 8 && !see_ge(S.board, m, -50 * depth);
         if (!S.board.make(m)) continue;
         // Futility pruning: a quiet move cannot lift this static eval above alpha so close to the leaves.
         // Checks are kept (they may mate), so the test runs after make().
         if (!pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 6 && static_eval + 100 + 100 * depth <= alpha
             && !S.board.in_check()) { S.board.unmake(m); continue; }
+        if (quiet_hangs && !S.board.in_check()) { S.board.unmake(m); continue; }
         if (nnue_ready()) nnue_update(S.acc[ply], S.acc[ply + 1], S.board);
         ++legal;
         const int new_depth = depth - 1;
