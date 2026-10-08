@@ -30,3 +30,4 @@ Every search/eval change, accepted or not. Method: `docs/testing.md` (fastchess,
 | 2026-10-08 | Data selection: the 25 % of sp2 the main net gets most wrong vs a random 25 % (same base, +5 superbatches, WDL 0.3) | GitHub Actions, 8+0.08 | fixed 3600 games | 3600 | −14.5 ± 6.8 | — | — | surprise ranking picks label noise (5k-node labels); hypothesis falsified in this form |
 | 2026-10-08 | Same hardest 25 % vs all of sp2 (100 %) | GitHub Actions, 8+0.08 | fixed 3600 games | 3600 | −27.7 ± 7.0 | — | — | implied: 4x more data ≈ +13 |
 | 2026-10-08 | Noise floor: two training runs of the hardest-25 % net | GitHub Actions, 8+0.08 | fixed 2400 games | 2400 | +0.3 ± 8.4 | — | — | run-to-run variance is below the measurement noise |
+| 2026-10-08 | IIR at PV nodes only (to fix late quiet mates) | GitHub Actions, 8+0.08, 8 jobs × conc. 3 | **H0** [−5, 0] | 3200 | −33.3 ± 7.2 | −6.87 | 3084995 | IIR's value is at non-PV nodes; weakness stays documented (roadmap) |
