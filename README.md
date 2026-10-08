@@ -33,5 +33,12 @@ A from-scratch UCI chess engine in C++17 that runs on a PC and on a ~$10 ESP32-S
 - From M2, the neural network trains on Stockfish evaluations from the Lichess CC0 database. Every result will state this.
 - Every rating claim ships with its games (`results/`), method (`docs/testing.md`) and confidence interval.
 
+## Training data and licences
+- **Default net `nets/leela-256.bin`.** Trained from scratch on 547M positions from Leela Chess Zero training data, as converted to bullet format in [linrock/bullet-training-data](https://huggingface.co/datasets/linrock/bullet-training-data) (file S2 iter-1).
+  - Licence: Lc0 training data is under the **Open Database License (ODbL)**, and this net is a Produced Work from it.
+  - Method: the full pipeline is in this repository (`tools/kaggle/train.py`, `train/`). Scores were rescaled to the engine's centipawns with `EVAL_SCALE` = 400 / (main-net eval / label slope) = 1106.
+- **Earlier nets.** Trained on the Lichess evaluation database (CC0; Stockfish evaluations) and on this engine's own self-play games (`tools/datagen.cpp`, releases `data-sp*`).
+- **What is ours.** The search, the network architecture and the training pipeline. The evaluation knowledge is distilled from Leela/Stockfish-derived data plus our own self-play. No Stockfish or Leela code or network weights are used.
+
 ## License
 GPL-3.0 — see `LICENSE`.
