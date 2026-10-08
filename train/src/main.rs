@@ -55,6 +55,9 @@ fn main() {
     let wdl: f32 = std::env::var("WDL").map(|v| v.parse().expect("WDL")).unwrap_or(0.0);
     // Fine-tuning: start from a checkpoint directory (INIT) with its own initial learning rate (LR).
     let init_lr: f32 = std::env::var("LR").map(|v| v.parse().expect("LR")).unwrap_or(0.001);
+    // Score units per our centipawn x 400: data labelled in other units (e.g. Stockfish-internal, Leela-derived) is
+    // trained with EVAL_SCALE = 400 * (its WDL scale / ours), from `lichess_convert wdlfit`, so outputs stay in our cp.
+    let eval_scale: f32 = std::env::var("EVAL_SCALE").map(|v| v.parse().expect("EVAL_SCALE")).unwrap_or(SCALE as f32);
 
     let mut trainer = ValueTrainerBuilder::default()
         .dual_perspective()
@@ -86,7 +89,7 @@ fn main() {
 
     let schedule = TrainingSchedule {
         net_id: net_id.clone(),
-        eval_scale: SCALE as f32,
+        eval_scale,
         steps: TrainingSteps {
             batch_size: 16_384,
             batches_per_superbatch: if measure { 200 } else { 6104 },  // 6104 * 16384 ~ 100M positions

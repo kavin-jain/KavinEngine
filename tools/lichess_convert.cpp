@@ -2,8 +2,11 @@
 //   zstd -dc lichess_db_eval.jsonl.zst | lichess_convert convert OUTDIR MAX_POSITIONS
 //   lichess_convert shuffle FILE...        in-place Fisher-Yates on 32-byte records
 //   lichess_convert shard OUTDIR FILE...   records (e.g. datagen output) -> random train_NN.bin / ~0.8% val.bin
+//   lichess_convert wdlfit FILE [MAX]      WDL scale s with result ~ sigmoid(score / s) (max likelihood); the ratio of
+//                                          two data sets' s converts one's score units into the other's
 //   lichess_convert text MAX < jsonl       "FEN | cp | 0.5" lines for kept positions (bullet-utils cross-check)
 //   lichess_convert binary OUT MAX < jsonl same positions as `text`, as records in one file
+#include <cmath>
 #include <cstdio>
 #include <random>
 #include <string>
@@ -108,6 +111,34 @@ static int shard(const std::string& dir, int nfiles, char** files) {
     return 0;
 }
 
+// Maximum-likelihood s for result ~ 1 / (1 + exp(-score / s)) over non-mate scores, by golden-section search.
+static int wdlfit(const char* path, uint64_t max) {
+    FILE* f = std::fopen(path, "rb");
+    if (!f) { std::perror(path); return 1; }
+    std::vector<std::pair<float, float>> pts;  // (score, result in [0, 1]), side to move
+    ChessBoardRecord r;
+    while (pts.size() < max && std::fread(&r, sizeof r, 1, f) == 1)
+        if (std::abs(r.score) < 3000) pts.push_back({float(r.score), r.result / 2.0f});
+    std::fclose(f);
+    if (pts.empty()) { std::fprintf(stderr, "%s: no records\n", path); return 1; }
+    auto ll = [&](double s) {
+        double t = 0;
+        for (auto [x, y] : pts) {
+            const double p = std::clamp(1 / (1 + std::exp(-x / s)), 1e-9, 1 - 1e-9);
+            t += y * std::log(p) + (1 - y) * std::log(1 - p);
+        }
+        return t / double(pts.size());
+    };
+    double a = 10, b = 5000;
+    const double g = (std::sqrt(5.0) - 1) / 2;
+    for (int i = 0; i < 80; ++i) {
+        const double c = b - g * (b - a), d = a + g * (b - a);
+        (ll(c) > ll(d) ? b : a) = ll(c) > ll(d) ? d : c;
+    }
+    std::printf("%s: wdl scale %.1f over %zu positions\n", path, (a + b) / 2, pts.size());
+    return 0;
+}
+
 static int sample(bool as_text, const char* out_path, uint64_t max_positions) {
     FILE* out = as_text ? stdout : std::fopen(out_path, "wb");
     if (!out) { std::perror(out_path); return 1; }
@@ -131,6 +162,7 @@ int main(int argc, char** argv) {
     if (cmd == "convert" && argc == 4) return convert(argv[2], std::stoull(argv[3]));
     if (cmd == "shuffle" && argc >= 3) { for (int i = 2; i < argc; ++i) if (shuffle(argv[i])) return 1; return 0; }
     if (cmd == "shard" && argc >= 4) return shard(argv[2], argc - 3, argv + 3);
+    if (cmd == "wdlfit" && argc >= 3) return wdlfit(argv[2], argc > 3 ? std::stoull(argv[3]) : 5000000);
     if (cmd == "text" && argc == 3) return sample(true, nullptr, std::stoull(argv[2]));
     if (cmd == "binary" && argc == 4) return sample(false, argv[2], std::stoull(argv[3]));
     std::fprintf(stderr, "usage: see header comment in tools/lichess_convert.cpp\n");
