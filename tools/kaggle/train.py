@@ -72,10 +72,12 @@ def leela():  # Leela-derived positions (linrock/bullet-training-data on Hugging
     return shard("leela", ["/tmp/leela-raw/l.bin"])
 
 
-def wdl_scale(path):  # lichess_convert wdlfit: "...: wdl scale S over N positions"
-    out = subprocess.run(["/tmp/ke/build/lichess_convert", "wdlfit", path], capture_output=True, text=True, check=True).stdout
+def eval_slope(net, data):  # least-squares slope of a reference net's eval (our cp) against the data's labels
+    sh("make -C /tmp/ke -s loss NNUE_HIDDEN=256 NNUE_KB=10 NNUE_OB=8")
+    out = subprocess.run(["/tmp/ke/build/nnue_loss_256", net, data, "1000000"], capture_output=True, text=True,
+                         check=True).stdout
     print(out.strip(), flush=True)
-    return float(out.split("wdl scale ")[1].split()[0])
+    return float(out.split("eval/label slope ")[1].split()[0])
 
 
 DATA = {"lichess": lichess, "sp1": lambda: selfplay(("sp1", 6)), "sp2": lambda: selfplay(("sp2", 16)),
@@ -83,9 +85,8 @@ DATA = {"lichess": lichess, "sp1": lambda: selfplay(("sp1", 6)), "sp2": lambda: 
 ready = {}
 for net, hidden, sbs, wdl, data, init, lr in JOBS:
     if data not in ready: ready[data] = DATA[data]()
-    if data == "leela" and "scale" not in ready:  # Leela scores -> our cp: equal scores must mean equal win odds
-        if "sp2" not in ready: ready["sp2"] = DATA["sp2"]()
-        ready["scale"] = 400 * wdl_scale(f"{ready['leela']}/train_00.bin") / wdl_scale(f"{ready['sp2']}/train_00.bin")
+    if data == "leela" and "scale" not in ready:  # Leela score units -> the main net's cp, so search margins still fit
+        ready["scale"] = 400 / eval_slope("/tmp/ke/nets/wb-ft-w3.bin", f"{ready['leela']}/train_00.bin")
         print(f"leela EVAL_SCALE {ready['scale']:.1f}", flush=True)
     log = f"/kaggle/working/{net}.log"
     env = f"WDL={wdl} LR={lr}" + (f" INIT={T}/checkpoints/{init}" if init else "") + \

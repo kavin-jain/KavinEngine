@@ -36,16 +36,18 @@ int main(int argc, char** argv) {
     const unsigned long long max = argc > 3 ? std::strtoull(argv[3], nullptr, 10) : ~0ull;
     ChessBoardRecord r;
     Accumulator acc;
-    double sum = 0;
+    double sum = 0, el = 0, ll = 0;  // el / ll: least-squares slope of the net's eval against the labels
     unsigned long long n = 0;
     while (n < max && std::fread(&r, sizeof r, 1, f) == 1) {
         record_pieces(r, B.pieces);
         nnue_refresh(B, acc);
         const double d = sigmoid(nnue_evaluate(acc, WHITE, popcount(r.occ))) - sigmoid(r.score);
         sum += d * d;
+        if (std::abs(r.score) < 2000) { const double e = nnue_evaluate(acc, WHITE, popcount(r.occ)); el += e * r.score; ll += double(r.score) * r.score; }
         ++n;
     }
     std::fclose(f);
-    std::printf("%s on %s: %llu positions, loss %.6f\n", argv[1], argv[2], n, n ? sum / double(n) : 0.0);
+    std::printf("%s on %s: %llu positions, loss %.6f, eval/label slope %.4f\n", argv[1], argv[2], n, n ? sum / double(n) : 0.0,
+                ll > 0 ? el / ll : 0.0);
     return n ? 0 : 1;
 }
