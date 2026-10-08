@@ -37,6 +37,15 @@ inline int feature(int persp, int pc, int sq, KingCtx k) {
     return k.base + (((int(color_of(pc)) == persp ? 0 : 384) + 64 * int(type_of(pc)) + (persp == WHITE ? sq : sq ^ 56)) ^ k.flip);
 }
 inline void add(int16_t* a, int f) { const int16_t* w = W0 + f * N; for (int i = 0; i < N; ++i) a[i] += w[i]; }
+inline void sub(int16_t* a, int f) { const int16_t* w = W0 + f * N; for (int i = 0; i < N; ++i) a[i] -= w[i]; }
+
+#if NNUE_KING_BUCKETS
+// Refresh cache ("Finny tables"): per perspective, king bucket and mirror half, the accumulator of the last position
+// refreshed there and its pieces. A king-bucket change patches that entry by the pieces that differ (usually a few)
+// instead of summing all ~30 features. int16 wraps modulo 2^16, so the result has the same bits as a full refresh.
+struct FinnyEntry { int16_t acc[N]; Bitboard pieces[12]; bool valid; };
+FinnyEntry finny[2][NNUE_KING_BUCKETS][2];
+#endif
 }  // namespace
 
 size_t nnue_expected_size() {
@@ -58,6 +67,9 @@ bool nnue_load(const unsigned char* data, size_t size) {
     if (mb + 32 * m0 > INT16_MAX || m1 > 127) return false;
     W0 = w0;
     B0 = b0;
+#if NNUE_KING_BUCKETS
+    for (auto& persp : finny) for (auto& bucket : persp) for (auto& e : bucket) e.valid = false;  // new net
+#endif
     W1 = w1;
     B1 = W1 + OB * 2 * N;
     return true;
@@ -71,6 +83,25 @@ static void refresh_persp(const Board& b, int16_t* a, int c) {
     for (int pc = 0; pc < 12; ++pc)
         for (Bitboard x = b.pieces[pc]; x;) add(a, feature(c, pc, pop_lsb(x), k));
 }
+
+#if NNUE_KING_BUCKETS
+static void refresh_cached(const Board& b, int16_t* a, int c) {
+    const KingCtx k = king_ctx(b, c);
+    FinnyEntry& e = finny[c][k.base / 768][k.flip ? 1 : 0];
+    if (!e.valid) {
+        refresh_persp(b, e.acc, c);
+        std::memcpy(e.pieces, b.pieces, sizeof e.pieces);
+        e.valid = true;
+    } else {
+        for (int pc = 0; pc < 12; ++pc) {
+            for (Bitboard x = b.pieces[pc] & ~e.pieces[pc]; x;) add(e.acc, feature(c, pc, pop_lsb(x), k));
+            for (Bitboard x = e.pieces[pc] & ~b.pieces[pc]; x;) sub(e.acc, feature(c, pc, pop_lsb(x), k));
+            e.pieces[pc] = b.pieces[pc];
+        }
+    }
+    std::memcpy(a, e.acc, sizeof e.acc);
+}
+#endif
 
 void nnue_refresh(const Board& b, Accumulator& acc) {
     for (int c = 0; c < 2; ++c) refresh_persp(b, acc.v[c], c);
@@ -88,7 +119,7 @@ void nnue_update(const Accumulator& parent, Accumulator& child, const Board& b) 
                 const KingCtx o = king_ctx(c, b.dirty[i].sq);
                 rebuild = o.base != k.base || o.flip != k.flip;
             }
-        if (rebuild) { refresh_persp(b, child.v[c], c); continue; }
+        if (rebuild) { refresh_cached(b, child.v[c], c); continue; }
 #endif
         const int16_t* add[6];
         const int16_t* sub[6];
