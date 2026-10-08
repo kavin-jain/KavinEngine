@@ -55,8 +55,8 @@ TEST(time_budget) {
     Limits l;
     l.time[WHITE] = 60000; l.inc[WHITE] = 600;
     TimeBudget t = compute_budget(l, WHITE);
-    CHECK_EQ(t.soft, 3300);   // 60000/20 + 600/2
-    CHECK_EQ(t.hard, 9900);   // 3 * soft, below 60000 - 50
+    CHECK_EQ(t.soft, 2300);   // 60000/30 + 600/2
+    CHECK_EQ(t.hard, 6900);   // 3 * soft, below 60000 - 50
     l.time[WHITE] = 40; l.inc[WHITE] = 0;
     t = compute_budget(l, WHITE);
     CHECK_EQ(t.hard, 1);
