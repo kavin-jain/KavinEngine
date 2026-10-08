@@ -30,6 +30,7 @@ struct Searcher {
     Move killers[MAX_PLY][2];
     int16_t history[2][64][64];
     Move pv[MAX_PLY][MAX_PLY];
+    uint64_t root_nodes[64][64];  // nodes spent below each root move this search (time management)
     int pv_len[MAX_PLY];
     uint8_t lmr[64][64];
     Accumulator acc[MAX_PLY + 1];  // acc[ply] matches the board at that ply
@@ -210,6 +211,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
         if (nnue_ready()) nnue_update(S.acc[ply], S.acc[ply + 1], S.board);
         ++legal;
         const int new_depth = depth - 1;
+        const uint64_t nodes_before = S.nodes;
         int score;
         if (legal == 1) {
             score = -negamax(-beta, -alpha, new_depth, ply + 1, true);
@@ -222,6 +224,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
             if (score > alpha && score < beta) score = -negamax(-beta, -alpha, new_depth, ply + 1, true);
         }
         S.board.unmake(m);
+        if (ply == 0) S.root_nodes[from_sq(m)][to_sq(m)] += S.nodes - nodes_before;
         if (S.stopped) return 0;
         if (score > best) {
             best = score;
@@ -313,7 +316,9 @@ SearchResult search(const Board& root, const Limits& limits, bool verbose) {
             if (S.board.make(l.moves[i])) { S.board.unmake(l.moves[i]); res.best = l.moves[i]; }
     }
     if (res.best == NO_MOVE) return res;  // checkmated or stalemated at the root
-    int prev_score = 0;
+    int prev_score = 0, stable = 0;
+    Move prev_best = NO_MOVE;
+    std::memset(S.root_nodes, 0, sizeof S.root_nodes);
     for (int d = 1; d <= limits.depth && d < MAX_PLY - 1; ++d) {
         S.seldepth = 0;
         int delta = 25, alpha = -INF, beta = INF;
@@ -332,7 +337,15 @@ SearchResult search(const Board& root, const Limits& limits, bool verbose) {
         if (!complete) break;
         prev_score = score;
         if (verbose) print_info(d, score);
-        if (S.budget.soft >= 0 && now_ms() - S.start >= S.budget.soft) break;
+        // Stop sooner when the best move took most of the effort and has stayed best, later otherwise
+        // (node-share and stability scaling of the soft limit; the constants are SPSA candidates).
+        stable = res.best == prev_best ? std::min(stable + 1, 4) : 0;
+        prev_best = res.best;
+        if (S.budget.soft >= 0) {
+            static constexpr double STABILITY[5] = {1.25, 1.10, 1.00, 0.90, 0.80};
+            const double share = double(S.root_nodes[from_sq(res.best)][to_sq(res.best)]) / double(std::max<uint64_t>(S.nodes, 1));
+            if (now_ms() - S.start >= int64_t(double(S.budget.soft) * (1.5 - share) * 1.35 * STABILITY[stable])) break;
+        }
         if (limits.nodes && S.nodes >= limits.nodes) break;
     }
     res.nodes = S.nodes;
