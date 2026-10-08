@@ -80,8 +80,20 @@ def eval_slope(net, data):  # least-squares slope of a reference net's eval (our
     return float(out.split("eval/label slope ")[1].split()[0])
 
 
+def selected(base, mode, fraction, net="/tmp/ke/nets/wb-ft-w3.bin"):  # surprise-ranked ("Einstein") or random subset
+    if base not in ready: ready[base] = DATA[base]()  # prepare the full set once for both subsets
+    src, d = ready[base], f"/tmp/{base}-{mode}{int(fraction * 100)}"
+    os.makedirs(d, exist_ok=True)
+    sh("make -C /tmp/ke -s loss NNUE_HIDDEN=256 NNUE_KB=10 NNUE_OB=8")
+    for f in sorted(glob.glob(f"{src}/train_*.bin")):
+        sh(f"/tmp/ke/build/nnue_loss_256 {net} {f} --{mode} {fraction} {d}/{os.path.basename(f)}")
+    shutil.copy(f"{src}/val.bin", f"{d}/val.bin")  # validation stays unfiltered
+    return d
+
+
 DATA = {"lichess": lichess, "sp1": lambda: selfplay(("sp1", 6)), "sp2": lambda: selfplay(("sp2", 16)),
-        "own": lambda: selfplay(("sp1", 6), ("sp2", 16)), "leela": leela}
+        "own": lambda: selfplay(("sp1", 6), ("sp2", 16)), "leela": leela,
+        "sp2-hard25": lambda: selected("sp2", "select", 0.25), "sp2-rand25": lambda: selected("sp2", "random", 0.25)}
 ready = {}
 for net, hidden, sbs, wdl, data, init, lr in JOBS:
     if data not in ready: ready[data] = DATA[data]()
