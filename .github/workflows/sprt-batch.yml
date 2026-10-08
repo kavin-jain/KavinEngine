@@ -53,7 +53,7 @@ jobs:
 
       - name: Build engines and record bench
         run: |
-          make -C dev -j4 -s EXE=engine ${{ inputs.dev_make }} && make -C base -j4 -s EXE=engine ${{ inputs.base_make }}
+          make -C dev -j4 -s CXX=clang++ EXE=engine ${{ inputs.dev_make }} && make -C base -j4 -s CXX=clang++ EXE=engine ${{ inputs.base_make }}
           echo "dev  $(dev/engine bench | tail -1)"  | tee bench.txt
           echo "base $(base/engine bench | tail -1)" | tee -a bench.txt
           nproc; grep -m1 "model name" /proc/cpuinfo

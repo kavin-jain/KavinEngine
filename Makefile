@@ -4,6 +4,11 @@ EVALFILE    ?= nets/wb-ft-w3.bin
 NNUE_HIDDEN ?= 256
 NNUE_KB     ?= 10
 NNUE_OB     ?= 8
+# clang++ when installed: it vectorises the SCReLU dot product much better than g++ (+8.0 % nps on GitHub's
+# runners, identical bench; nps workflow, 2026-10-08). An explicit CXX=... still wins.
+ifeq ($(origin CXX),default)
+  CXX := $(shell command -v clang++ > /dev/null 2>&1 && echo clang++ || echo c++)
+endif
 ARCH        := $(shell uname -m)
 ifeq ($(ARCH),arm64)
   NATIVE := -mcpu=native

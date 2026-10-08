@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
         with: {ref: "${{ inputs.ref }}"}
       - name: Build
-        run: make -j4 -s datagen
+        run: make -j4 -s CXX=clang++ datagen
       - name: Fetch book (SHA-checked)
         if: inputs.book == 'uho'
         run: |

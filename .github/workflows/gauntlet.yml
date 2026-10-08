@@ -47,7 +47,7 @@ jobs:
 
       - name: Build engines
         run: |
-          make -C ours -j4 -s EXE=engine && echo "ours: $(ours/engine bench | tail -1)"
+          make -C ours -j4 -s CXX=clang++ EXE=engine && echo "ours: $(ours/engine bench | tail -1)"
           git clone -q https://github.com/mhouppin/stash-bot stash
           for t in $(echo '${{ inputs.anchors }}' | python3 -c "import json,sys; print(' '.join(json.load(sys.stdin)))"); do
             git -C stash clean -fdxq && git -C stash checkout -qf "$t"

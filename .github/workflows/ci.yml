@@ -9,4 +9,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: make -j4 -s test
-      - run: make -j4 -s && ./engine bench | tail -1
+      - run: make -j4 -s CXX=clang++ && ./engine bench | tail -1
