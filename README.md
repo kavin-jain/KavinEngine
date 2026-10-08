@@ -5,7 +5,7 @@ a neural-network evaluation (NNUE) trained on GPUs in the cloud. It plays at **~
 against eight independent engines, and it runs as a **live bot on Lichess**. The same source also compiles for a ~$10
 ESP32-S3 microcontroller.
 
-**▶ Play it or watch it live: [kavinjain.in/chess](https://kavinjain.in/chess)**, or challenge it directly on Lichess:
+**▶ Watch it replay its latest game (wizard-chess style): [kavinjain.in/chess](https://kavinjain.in/chess)**, or challenge it directly on Lichess:
 [lichess.org/@/KavinEngine](https://lichess.org/@/KavinEngine) (free account, any time control from 1+0 to 30+20).
 
 | | |
