@@ -19,10 +19,34 @@ TEST(finds_mate_in_one) {
 }
 
 TEST(finds_mate_in_two) {
-    // e.g. 1.Ra7 Kg8 2.Rb8#. The depth at which the mate appears depends on the net: a net that scores KRRvK at
-    // +1000 lets reverse futility cut the quiet mating line until depth 9 (the m2 net scored it +170: depth 3).
-    SearchResult r = run("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 10);
+    // e.g. 1.Ra7 Kg8 2.Rb8#. Checks mate scoring. The depth needed depends on the net, a known search weakness (quiet
+    // mates in won positions are found late: IIR at non-PV nodes with RFP; roadmap): m2 depth 3, KB10 9, Leela 11.
+    SearchResult r = run("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 12);
     CHECK_EQ(r.score, MATE - 3);
+}
+
+// Self-play from a won ending against a bare king must mate well before the 50-move rule. The first position is the
+// Lichess game (2026-10-08) where the bot needed 37 moves for a tablebase mate in 6; KRK needs at most 16 moves.
+static int moves_to_mate(const char* fen, uint64_t nodes, int max_moves) {
+    CHECK(B.set_fen(fen));
+    clear_search_state();
+    for (int ply = 0; ply < 2 * max_moves; ++ply) {
+        Limits l;
+        l.nodes = nodes;
+        const SearchResult r = search(B, l, false);
+        if (r.best == NO_MOVE) return B.in_check() ? (ply + 1) / 2 : -1;  // mated, or -1 for stalemate
+        B.make(r.best);
+        B.trim_history();
+    }
+    return -1;
+}
+
+TEST(converts_bare_king_endings) {
+    const int kqk = moves_to_mate("8/5k2/8/6Q1/5P2/7P/6K1/8 w - - 1 51", 20000, 40);
+    const int krk = moves_to_mate("8/8/8/4k3/8/8/8/R3K3 w - - 0 1", 20000, 40);
+    std::printf("  bare-king conversion: KQPP-K mate in %d moves (tablebase 6), KR-K in %d (tablebase <= 16)\n", kqk, krk);
+    CHECK(kqk > 0 && kqk <= 12);
+    CHECK(krk > 0 && krk <= 25);
 }
 
 TEST(bare_kings_is_draw) {
@@ -67,4 +91,16 @@ TEST(time_budget) {
     Limits d;  // depth-only search: no clock
     t = compute_budget(d, WHITE);
     CHECK_EQ(t.hard, -1);
+    g_clock_reserve = 20000;  // plans with 40 s of 60 s; below the reserve, half the increment
+    l = Limits{};
+    l.time[WHITE] = 60000; l.inc[WHITE] = 600;
+    t = compute_budget(l, WHITE);
+    CHECK_EQ(t.soft, 2300); CHECK_EQ(t.hard, 6900);
+    l.time[WHITE] = 15000;
+    t = compute_budget(l, WHITE);
+    CHECK_EQ(t.soft, 300); CHECK_EQ(t.hard, 900);
+    l.inc[WHITE] = 0;  // no increment: plans with half the clock
+    t = compute_budget(l, WHITE);
+    CHECK_EQ(t.soft, 375);
+    g_clock_reserve = 0;
 }

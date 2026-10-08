@@ -1,0 +1,29 @@
+# Stockfish 19 analysis of a Lichess game: eval after every move and each side's mistakes (tools/analyze_game.py).
+name: analyze
+run-name: "analyze ${{ inputs.game }}"
+on:
+  workflow_dispatch:
+    inputs:
+      game: {description: "Lichess game id (8 characters)", required: true}
+      nodes: {description: "Stockfish nodes per position", default: "2000000"}
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Stockfish 19
+        run: |
+          git clone -q --depth 1 -b sf_19 https://github.com/official-stockfish/Stockfish sf
+          make -C sf/src -s -j4 build ARCH=x86-64-avx2 > /dev/null && printf 'uci\nquit\n' | sf/src/stockfish | grep '^id name'
+      - name: Analyse
+        run: |
+          pip install -q chess
+          python3 tools/analyze_game.py "${{ inputs.game }}" sf/src/stockfish "${{ inputs.nodes }}" | tee analysis.txt
+          { echo '```'; cat analysis.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with: {name: "analysis-${{ inputs.game }}", path: analysis.txt}

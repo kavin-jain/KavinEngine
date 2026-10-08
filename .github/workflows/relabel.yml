@@ -43,7 +43,8 @@ jobs:
       - name: Relabel
         run: |
           max=$(( 4 * ${{ inputs.per_proc }} ))
-          for p in 0 1 2 3; do python3 tools/relabel.py in.bin out$p.bin "$(cat cmd.txt)" ${{ inputs.nodes }} $p 4 $max & done
+          # stop before the job timeout (340 min) so a slow teacher still uploads what it labelled
+          for p in 0 1 2 3; do timeout -s INT 320m python3 tools/relabel.py in.bin out$p.bin "$(cat cmd.txt)" ${{ inputs.nodes }} $p 4 $max & done
           wait
           cat out0.bin out1.bin out2.bin out3.bin > "${{ inputs.id }}-j${{ matrix.job }}.bin"
           ls -l *.bin && zstd -q -T0 -10 --rm "${{ inputs.id }}-j${{ matrix.job }}.bin"
