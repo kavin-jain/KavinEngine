@@ -40,7 +40,29 @@ struct Searcher {
 };
 Searcher S;  // static storage: these arrays must not live on the small ESP32 task stack
 
+// Against a bare king a queen or rook always mates, but the net rates all such positions alike ("won"), so the search
+// had no gradient towards mate: a K+Q+2P vs K game on Lichess took 37 moves for a tablebase mate in 6 (2026-10-08).
+// There the eval is a known win plus material (PeSTO) plus a mop-up term: the lone king to the edge, our king close
+// (chessprogramming.org "Mop-up Evaluation"). The known-win offset makes trading into such an ending attractive.
+// Returns 0 (not applicable) otherwise.
+constexpr int KNOWN_WIN = 10000;
+int bare_king_eval(const Board& b) {
+    for (const Color strong : {WHITE, BLACK}) {
+        const Color weak = Color(strong ^ 1);
+        Bitboard weak_men = 0;
+        for (int t = PAWN; t < KING; ++t) weak_men |= b.pieces[make_piece(weak, PieceType(t))];
+        if (weak_men || !(b.pieces[make_piece(strong, QUEEN)] | b.pieces[make_piece(strong, ROOK)])) continue;
+        const int wk = b.king_sq(weak), sk = b.king_sq(strong);
+        const int edge = std::max(3 - (wk & 7), (wk & 7) - 4) + std::max(3 - (wk >> 3), (wk >> 3) - 4);  // 0 centre .. 6 corner
+        const int near = 14 - std::abs((wk & 7) - (sk & 7)) - std::abs((wk >> 3) - (sk >> 3));
+        const int sign = b.stm == strong ? 1 : -1;
+        return sign * (KNOWN_WIN + 50 * edge + 20 * near) + evaluate(b);
+    }
+    return 0;
+}
+
 int eval_at(int ply) {
+    if (const int k = bare_king_eval(S.board)) return k;
     const int e = nnue_ready() ? nnue_evaluate(S.acc[ply], S.board.stm, popcount(S.board.occ)) : evaluate(S.board);
     return std::clamp(e, -MATE_BOUND + 1, MATE_BOUND - 1);
 }

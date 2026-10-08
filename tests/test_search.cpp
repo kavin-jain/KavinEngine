@@ -25,6 +25,30 @@ TEST(finds_mate_in_two) {
     CHECK_EQ(r.score, MATE - 3);
 }
 
+// Self-play from a won ending against a bare king must mate well before the 50-move rule. The first position is the
+// Lichess game (2026-10-08) where the bot needed 37 moves for a tablebase mate in 6; KRK needs at most 16 moves.
+static int moves_to_mate(const char* fen, uint64_t nodes, int max_moves) {
+    CHECK(B.set_fen(fen));
+    clear_search_state();
+    for (int ply = 0; ply < 2 * max_moves; ++ply) {
+        Limits l;
+        l.nodes = nodes;
+        const SearchResult r = search(B, l, false);
+        if (r.best == NO_MOVE) return B.in_check() ? (ply + 1) / 2 : -1;  // mated, or -1 for stalemate
+        B.make(r.best);
+        B.trim_history();
+    }
+    return -1;
+}
+
+TEST(converts_bare_king_endings) {
+    const int kqk = moves_to_mate("8/5k2/8/6Q1/5P2/7P/6K1/8 w - - 1 51", 20000, 40);
+    const int krk = moves_to_mate("8/8/8/4k3/8/8/8/R3K3 w - - 0 1", 20000, 40);
+    std::printf("  bare-king conversion: KQPP-K mate in %d moves (tablebase 6), KR-K in %d (tablebase <= 16)\n", kqk, krk);
+    CHECK(kqk > 0 && kqk <= 12);
+    CHECK(krk > 0 && krk <= 25);
+}
+
 TEST(bare_kings_is_draw) {
     SearchResult r = run("8/8/8/8/8/8/8/K6k w - - 0 1", 4);
     CHECK_EQ(r.score, 0);
