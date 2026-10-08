@@ -1,0 +1,55 @@
+# Distillation data: relabel the first positions of each sp2 self-play file with a teacher engine (tools/relabel.py).
+# Every teacher sees the same records, so arms differ only in label quality. Output: release data-<id>.
+name: relabel
+run-name: "relabel ${{ inputs.id }}"
+on:
+  workflow_dispatch:
+    inputs:
+      id: {description: "dataset id", required: true}
+      ref: {description: "engine commit (for teacher=ours)", required: true}
+      teacher: {description: "stockfish (sf_19) | ours | none (original labels)", required: true}
+      nodes: {description: "teacher nodes per position", default: "20000"}
+      ours_make: {description: "make variables for teacher=ours", default: ""}
+      per_proc: {description: "records per process (4 per job)", default: "400000"}
+      jobs: {description: "JSON list of sp2 job files to use", default: "[1,2,3,4,5,6,7,8,9,10,11,12]"}
+
+permissions:
+  contents: write  # release assets
+
+jobs:
+  relabel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ fromJSON(inputs.jobs) }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ inputs.ref }}"}
+      - name: Fetch positions
+        run: |
+          curl -sSfL -o in.zst https://github.com/kavin-jain/KavinEngine/releases/download/data-sp2/sp2-j${{ matrix.job }}.bin.zst
+          zstd -q -d --rm in.zst -o in.bin && ls -l in.bin
+      - name: Build teacher
+        run: |
+          case "${{ inputs.teacher }}" in
+            stockfish) git clone -q --depth 1 -b sf_19 https://github.com/official-stockfish/Stockfish sf
+                       make -C sf/src -s -j4 build ARCH=x86-64-avx2 > /dev/null && echo "sf/src/stockfish" > cmd.txt ;;
+            ours) make -s -j4 CXX=clang++ EXE=teacher ${{ inputs.ours_make }} && echo "./teacher" > cmd.txt ;;
+            none) echo none > cmd.txt ;;
+          esac
+          [ "$(cat cmd.txt)" = none ] || (printf 'uci\nquit\n' | $(cat cmd.txt) | grep '^id name')
+      - name: Relabel
+        run: |
+          max=$(( 4 * ${{ inputs.per_proc }} ))
+          for p in 0 1 2 3; do python3 tools/relabel.py in.bin out$p.bin "$(cat cmd.txt)" ${{ inputs.nodes }} $p 4 $max & done
+          wait
+          cat out0.bin out1.bin out2.bin out3.bin > "${{ inputs.id }}-j${{ matrix.job }}.bin"
+          ls -l *.bin && zstd -q -T0 -10 --rm "${{ inputs.id }}-j${{ matrix.job }}.bin"
+      - name: Upload to release data-${{ inputs.id }}
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: |
+          gh release create "data-${{ inputs.id }}" --target "${{ inputs.ref }}" --title "Relabelled data ${{ inputs.id }}" \
+            --notes "sp2 positions relabelled by teacher=${{ inputs.teacher }} at ${{ inputs.nodes }} nodes (tools/relabel.py)." 2>/dev/null || true
+          gh release upload "data-${{ inputs.id }}" *.zst --clobber
