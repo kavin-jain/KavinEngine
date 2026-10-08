@@ -162,8 +162,9 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
             return s;
     }
 
-    // Internal iterative reduction: with no TT move to try first, ordering is weak here; search shallower.
-    if (depth >= 4 && tt_move == NO_MOVE) --depth;
+    // Internal iterative reduction: with no TT move to try first, ordering is weak here; search shallower. PV nodes
+    // only: at every node it hid quiet mates in won endgames (KRRvK mate in 2 unseen at depth 10 with a Leela net).
+    if (pv_node && depth >= 4 && tt_move == NO_MOVE) --depth;
 
     const int raw_eval = in_check ? -INF : eval_at(ply);
     const int static_eval = in_check ? -INF : corrected(raw_eval);
