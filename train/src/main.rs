@@ -107,6 +107,10 @@ fn main() {
         .filter(|p| p.contains("/train_") && p.ends_with(".bin"))
         .collect();
     files.sort();
+    // Scaling-law study: train on the first SHARDS shards only (each ~7.4M Lichess positions); default all.
+    if let Ok(n) = std::env::var("SHARDS") {
+        files.truncate(n.parse().expect("SHARDS"));
+    }
     let refs: Vec<&str> = files.iter().map(String::as_str).collect();
     let val = format!("{data_dir}/val.bin");
     let settings = LocalSettings {

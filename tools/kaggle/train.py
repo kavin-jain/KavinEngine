@@ -59,7 +59,8 @@ ready = {}
 for net, hidden, sbs, wdl, data, init, lr in JOBS:
     if data not in ready: ready[data] = DATA[data]()
     log = f"/kaggle/working/{net}.log"
-    env = f"WDL={wdl} LR={lr}" + (f" INIT={T}/checkpoints/{init}" if init else "")
+    env = f"WDL={wdl} LR={lr}" + (f" INIT={T}/checkpoints/{init}" if init else "") + \
+        (f" SHARDS={net.split('-s')[-1]}" if "-s" in net and net.split('-s')[-1].isdigit() else "")  # e.g. grid-w64-s8
     # Full log to a file; one line per superbatch to stdout, visible live via `kaggle kernels logs -f`.
     sh(f"set -o pipefail; cd {T} && {env} target/release/train {hidden} {sbs} {net} {ready[data]} 2>&1 | tee {log} | "
        f"stdbuf -oL tr '\\r' '\\n' | grep --line-buffered -a 'running loss'")
