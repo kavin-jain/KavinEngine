@@ -63,27 +63,38 @@ bool should_stop() {
     return S.stopped;
 }
 
-void score_moves(const MoveList& list, int16_t* scores, Move tt_move, int ply) {
+// Captures and promotions are scored as if SEE >= 0 and marked pending: pick() runs SEE only when such a move would
+// be chosen, and demotes it to the losing-capture band if it fails. Same order as scoring SEE up front, fewer SEE calls.
+void score_moves(const MoveList& list, int16_t* scores, bool* see_pending, Move tt_move, int ply) {
     for (int i = 0; i < list.size; ++i) {
         const Move m = list.moves[i];
+        see_pending[i] = false;
         if (m == tt_move) scores[i] = 30000;
         else if (is_capture(m) || is_promo(m)) {  // MVV-LVA
             int victim = flags_of(m) == EP_CAPTURE ? PAWN : is_capture(m) ? int(type_of(S.board.mailbox[to_sq(m)])) : 0;
             int attacker = type_of(S.board.mailbox[from_sq(m)]);
             int promo = is_promo(m) && promo_type(m) == QUEEN ? 64 : 0;
-            scores[i] = int16_t((see_ge(S.board, m, 0) ? 20000 : -30000) + victim * 8 - attacker + promo);  // losing captures after quiets
+            scores[i] = int16_t(20000 + victim * 8 - attacker + promo);  // losing captures (SEE < 0) go after quiets: pick()
+            see_pending[i] = true;
         } else if (m == S.killers[ply][0]) scores[i] = 19000;
         else if (m == S.killers[ply][1]) scores[i] = 18999;
         else scores[i] = S.history[S.board.stm][from_sq(m)][to_sq(m)];  // bounded to +-16384
     }
 }
 
-Move pick(MoveList& list, int16_t* scores, int i) {  // selection sort, one step
-    int best = i;
-    for (int j = i + 1; j < list.size; ++j) if (scores[j] > scores[best]) best = j;
-    std::swap(list.moves[i], list.moves[best]);
-    std::swap(scores[i], scores[best]);
-    return list.moves[i];
+Move pick(MoveList& list, int16_t* scores, bool* see_pending, int i) {  // selection sort, one step
+    for (;;) {
+        int best = i;
+        for (int j = i + 1; j < list.size; ++j) if (scores[j] > scores[best]) best = j;
+        if (see_pending[best]) {
+            see_pending[best] = false;
+            if (!see_ge(S.board, list.moves[best], 0)) { scores[best] = int16_t(scores[best] - 50000); continue; }
+        }
+        std::swap(list.moves[i], list.moves[best]);
+        std::swap(scores[i], scores[best]);
+        std::swap(see_pending[i], see_pending[best]);
+        return list.moves[i];
+    }
 }
 
 void update_history(Move m, int bonus) {  // "gravity": keeps values within +-16384
@@ -106,11 +117,12 @@ int qsearch(int alpha, int beta, int ply) {
     MoveList list;
     generate(S.board, list, !in_check);  // in check: all evasions
     int16_t scores[MAX_MOVES];
-    score_moves(list, scores, NO_MOVE, ply);
+    bool see_pending[MAX_MOVES];
+    score_moves(list, scores, see_pending, NO_MOVE, ply);
     int legal = 0;
     for (int i = 0; i < list.size; ++i) {
-        Move m = pick(list, scores, i);
-        if (!in_check && !see_ge(S.board, m, 0)) continue;  // a losing capture can't beat the stand-pat
+        Move m = pick(list, scores, see_pending, i);
+        if (!in_check && scores[i] < 0) break;  // losing captures (SEE < 0, sorted last) can't beat the stand-pat
         if (!S.board.make(m)) continue;
         if (nnue_ready()) nnue_update(S.acc[ply], S.acc[ply + 1], S.board);
         ++legal;
@@ -175,24 +187,25 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
     MoveList list;
     generate(S.board, list, false);
     int16_t scores[MAX_MOVES];
-    score_moves(list, scores, tt_move, ply);
+    bool see_pending[MAX_MOVES];
+    score_moves(list, scores, see_pending, tt_move, ply);
     Move quiets[64];
     int n_quiets = 0, legal = 0, best = -INF;
     const int alpha0 = alpha;
     Move best_move = NO_MOVE;
     for (int i = 0; i < list.size; ++i) {
-        const Move m = pick(list, scores, i);
+        const Move m = pick(list, scores, see_pending, i);
         const bool quiet = !is_capture(m) && !is_promo(m);
         // SEE pruning: near the leaves, skip captures that lose material by force...
         if (!pv_node && !in_check && !quiet && best > -MATE_BOUND && depth <= 8 && !see_ge(S.board, m, -20 * depth * depth))
             continue;
         // ...and quiet moves that hang the moved piece (decided below, after make(), so checks are kept).
-        const bool quiet_hangs = quiet && !pv_node && !in_check && best > -MATE_BOUND && depth <= 8 && !see_ge(S.board, m, -50 * depth);
+        // Futility pruning: a quiet move cannot lift this static eval above alpha so close to the leaves. Checks are
+        // kept (they may mate), so the check test runs after make(); a futile move needs no SEE (both prunes need !check).
+        const bool futile = !pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 6 && static_eval + 100 + 100 * depth <= alpha;
+        const bool quiet_hangs = !futile && quiet && !pv_node && !in_check && best > -MATE_BOUND && depth <= 8 && !see_ge(S.board, m, -50 * depth);
         if (!S.board.make(m)) continue;
-        // Futility pruning: a quiet move cannot lift this static eval above alpha so close to the leaves.
-        // Checks are kept (they may mate), so the test runs after make().
-        if (!pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 6 && static_eval + 100 + 100 * depth <= alpha
-            && !S.board.in_check()) { S.board.unmake(m); continue; }
+        if (futile && !S.board.in_check()) { S.board.unmake(m); continue; }
         if (quiet_hangs && !S.board.in_check()) { S.board.unmake(m); continue; }
         if (nnue_ready()) nnue_update(S.acc[ply], S.acc[ply + 1], S.board);
         ++legal;
