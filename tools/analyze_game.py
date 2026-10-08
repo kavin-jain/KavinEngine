@@ -31,7 +31,7 @@ for mv in game.mainline_moves():
     board.push(mv)
     after, next_best = analyse(board)
     drop = (ev - after) if mover == chess.WHITE else (after - ev)
-    note = f"  MISTAKE by {'White' if mover else 'Black'}: -{drop} cp, best was {best_san}" if drop >= 100 else ""
+    note = f"  MISTAKE by {'White' if mover else 'Black'}: -{drop} cp, best was {best_san}" if drop >= 100 and mv != best else ""
     print(f"{num:>7} {san:>8} {after:>7}{note}")
     ev, best = after, next_best
 eng.quit()
