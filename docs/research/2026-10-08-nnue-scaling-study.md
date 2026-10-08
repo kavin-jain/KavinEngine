@@ -71,3 +71,20 @@ On the ESP32-S3 (no SIMD for these kernels, ~100× slower per node), evaluation 
 ## Next
 - Elo of each net at (a) fixed nodes, which measures eval quality alone, (b) fixed time on desktop hardware, and (c) node budgets emulating the ESP32-S3's measured speed per width, checked later on the real board.
 - Fit loss(N, D) and Elo(N, device, time control); predict the optimal width per device and verify the prediction with a held-out experiment.
+
+## Data quality vs quantity (2026-10-08)
+**Setup:** the same Lichess-trained base, fine-tuned for 5 superbatches (WDL 0.3) on subsets of 296.9M self-play positions (sp2).
+
+| Comparison | Elo (fixed games) |
+|---|---|
+| Fine-tune on self-play vs on Lichess, same steps (confound control) | +57.2 ± 7.3 |
+| +5 superbatches on Lichess vs none | +3.5 ± 8.0 |
+| Hardest 25 % by the main net's per-position loss vs random 25 % | **−14.5 ± 6.8** |
+| Hardest 25 % vs all 100 % | −27.7 ± 7.0 (so 4× data ≈ +13) |
+| Two training runs of the same arm (noise floor) | +0.3 ± 8.4 |
+
+**Reading:**
+- The self-play gain comes from the data, not from extra training.
+- Ranking by surprise selects label noise: 5k-node search labels are often wrong exactly where the net disagrees. That is Sorscher et al.'s caveat: data pruning needs a metric that separates informative examples from mislabelled ones.
+- Next tests: label quality at equal compute (deeper search, fewer positions), and pruning the noisiest ~10 % instead of keeping it.
+
