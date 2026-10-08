@@ -3,7 +3,7 @@
 import glob, os, shutil, subprocess
 
 REF = "__REF__"
-JOBS = __JOBS__  # [(net_id, hidden, superbatches, wdl, data: "lichess"|"sp1", init checkpoint "<net>-<sb>" or "", lr)]
+JOBS = __JOBS__  # [(net_id, hidden, superbatches, wdl, data: lichess|sp1|sp2|own|leela, init "<net>-<sb>" or "", lr)]
 
 
 def sh(cmd):
@@ -39,28 +39,58 @@ def lichess():
     return fetch_release("data-lichess-v1", [f"train_{i:02d}.bin" for i in range(32)] + ["val.bin"])
 
 
-def selfplay(tag, jobs):  # datagen release (zstd, one file per job) -> shuffled train_NN.bin + val.bin
-    raw = fetch_release(f"data-{tag}", [f"{tag}-j{j}.bin.zst" for j in range(1, jobs + 1)])
+def unzstd(src, dst):
     sh("pip install -q zstandard")
     import zstandard
-    for f in glob.glob(f"{raw}/*.zst"):
-        with open(f, "rb") as src, open(f[:-4], "wb") as dst:
-            zstandard.ZstdDecompressor().copy_stream(src, dst)
-        os.remove(f)
-    d = f"/tmp/{tag}"
+    with open(src, "rb") as a, open(dst, "wb") as b:
+        zstandard.ZstdDecompressor().copy_stream(a, b)
+    os.remove(src)
+
+
+def shard(name, raw_files):  # 32-byte records -> shuffled train_NN.bin + val.bin
+    d = f"/tmp/{name}"
     os.makedirs(d, exist_ok=True)
-    sh(f"make -C /tmp/ke -s convert && /tmp/ke/build/lichess_convert shard {d} {raw}/*.bin && "
-       f"/tmp/ke/build/lichess_convert shuffle {d}/*.bin && rm -r {raw} && du -sh {d}")
+    sh(f"make -C /tmp/ke -s convert && /tmp/ke/build/lichess_convert shard {d} {' '.join(raw_files)} && "
+       f"/tmp/ke/build/lichess_convert shuffle {d}/*.bin && rm {' '.join(raw_files)} && du -sh {d}")
     return d
 
 
-DATA = {"lichess": lichess, "sp1": lambda: selfplay("sp1", 6)}
+def selfplay(*sets):  # datagen releases, e.g. ("sp1", 6), ("sp2", 16): zstd files merged into one shuffled set
+    raw = []
+    for tag, jobs in sets:
+        d = fetch_release(f"data-{tag}", [f"{tag}-j{j}.bin.zst" for j in range(1, jobs + 1)])
+        for f in glob.glob(f"{d}/*.zst"):
+            unzstd(f, f[:-4]); raw.append(f[:-4])
+    return shard("+".join(t for t, _ in sets), raw)
+
+
+def leela():  # Leela-derived positions (linrock/bullet-training-data on Hugging Face, ODbL), one ~9 GB file
+    f = "test77nov-unfilt-test79-maraprmay-v6-dd.skip-see-ge0.wdl-pdist.iter-1.bullet.bin.zst"
+    os.makedirs("/tmp/leela-raw", exist_ok=True)
+    sh(f"curl -sSfL -o /tmp/leela-raw/l.zst https://huggingface.co/datasets/linrock/bullet-training-data/resolve/main/S2/{f}")
+    unzstd("/tmp/leela-raw/l.zst", "/tmp/leela-raw/l.bin")
+    return shard("leela", ["/tmp/leela-raw/l.bin"])
+
+
+def wdl_scale(path):  # lichess_convert wdlfit: "...: wdl scale S over N positions"
+    out = subprocess.run(["/tmp/ke/build/lichess_convert", "wdlfit", path], capture_output=True, text=True, check=True).stdout
+    print(out.strip(), flush=True)
+    return float(out.split("wdl scale ")[1].split()[0])
+
+
+DATA = {"lichess": lichess, "sp1": lambda: selfplay(("sp1", 6)), "sp2": lambda: selfplay(("sp2", 16)),
+        "own": lambda: selfplay(("sp1", 6), ("sp2", 16)), "leela": leela}
 ready = {}
 for net, hidden, sbs, wdl, data, init, lr in JOBS:
     if data not in ready: ready[data] = DATA[data]()
+    if data == "leela" and "scale" not in ready:  # Leela scores -> our cp: equal scores must mean equal win odds
+        if "sp2" not in ready: ready["sp2"] = DATA["sp2"]()
+        ready["scale"] = 400 * wdl_scale(f"{ready['leela']}/train_00.bin") / wdl_scale(f"{ready['sp2']}/train_00.bin")
+        print(f"leela EVAL_SCALE {ready['scale']:.1f}", flush=True)
     log = f"/kaggle/working/{net}.log"
     env = f"WDL={wdl} LR={lr}" + (f" INIT={T}/checkpoints/{init}" if init else "") + \
         (f" SHARDS={net.split('-s')[-1]}" if "-s" in net and net.split('-s')[-1].isdigit() else "")  # e.g. grid-w64-s8
+    if data == "leela": env += f" EVAL_SCALE={ready['scale']:.1f}"
     # Full log to a file; one line per superbatch to stdout, visible live via `kaggle kernels logs -f`.
     sh(f"set -o pipefail; cd {T} && {env} target/release/train {hidden} {sbs} {net} {ready[data]} 2>&1 | tee {log} | "
        f"stdbuf -oL tr '\\r' '\\n' | grep --line-buffered -a 'running loss'")
