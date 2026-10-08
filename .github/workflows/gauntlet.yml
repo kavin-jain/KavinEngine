@@ -7,7 +7,7 @@ on:
     inputs:
       id: {description: "gauntlet id", required: true}
       ref: {description: "engine commit", required: true}
-      anchors: {description: "JSON list of Stash tags", default: '["v27.0","v29.0","v33.0","v35.0","v37.0"]'}
+      anchors: {description: "JSON list of {name, repo, tag, build, binary, id_contains} (tools/anchors.json)", required: true}
       tc: {description: "time control", default: "60+0.6"}
       rounds: {description: "rounds per job (each round: 2 games vs every anchor)", default: "10"}
       concurrency: {description: "games at once per job", default: "3"}
@@ -46,24 +46,32 @@ jobs:
           echo "5835239f88cc2c7511b177c32392a69f3ede21819cf0616f80a7f907cd21d17e  8moves_v3.pgn" | sha256sum -c -
 
       - name: Build engines
+        env: {ANCHORS: "${{ inputs.anchors }}"}
         run: |
           make -C ours -j4 -s CXX=clang++ EXE=engine && echo "ours: $(ours/engine bench | tail -1)"
-          git clone -q https://github.com/mhouppin/stash-bot stash
-          for t in $(echo '${{ inputs.anchors }}' | python3 -c "import json,sys; print(' '.join(json.load(sys.stdin)))"); do
-            git -C stash clean -fdxq && git -C stash checkout -qf "$t"
-            sed -i 's/-Werror//' stash/src/Makefile  # old sources vs a newer compiler: warnings must not fail the build
-            make -C stash/src -s -j4 > /dev/null || { echo "::warning::skipping $t: build failed"; continue; }
-            cp "$(ls stash/src/stash-bot stash/src/stash 2> /dev/null | head -1)" "stash-$t"  # renamed to "stash" in v37
-            id=$(printf 'uci\nquit\n' | ./stash-$t | grep '^id name')
-            echo "stash-$t: $id"
-            # A tag whose binary reports another version (GitHub v31.0 says "v30.15") is not the CCRL-rated build: skip it.
-            case "$id" in *"${t#v}"*) echo "$t" >> anchors-ok.txt ;; *) echo "::warning::skipping $t: $id" ;; esac
-          done
-
+          printf '%s' "$ANCHORS" > anchors.json
+          python3 - <<'EOF'
+          import json, subprocess
+          ok = []
+          for a in json.load(open("anchors.json")):
+              d = "src-" + a["name"]
+              try:
+                  subprocess.run(["git", "clone", "-q", "--depth", "1", "-b", a["tag"], a["repo"], d], check=True)
+                  subprocess.run(a["build"], shell=True, cwd=d, check=True, stdout=subprocess.DEVNULL, timeout=1500)
+                  subprocess.run(["cp", f"{d}/{a['binary']}", a["name"]], check=True)
+                  out = subprocess.run(["./" + a["name"]], input="uci\nquit\n", capture_output=True, text=True, timeout=60).stdout
+                  ident = next((l for l in out.splitlines() if l.startswith("id name")), "")
+                  print(f"{a['name']}: {ident}")
+                  if a["id_contains"] in ident: ok.append(a["name"])
+                  else: print(f"::warning::skipping {a['name']}: {ident!r} lacks {a['id_contains']!r}")
+              except Exception as e:  # one broken anchor must not sink the job
+                  print(f"::warning::skipping {a['name']}: {e}")
+          open("anchors-ok.txt", "w").write("\n".join(ok) + "\n")
+          EOF
       - name: Play
         run: |
           args=""
-          for t in $(cat anchors-ok.txt); do args="$args -engine cmd=./stash-$t name=Stash-$t"; done
+          for t in $(cat anchors-ok.txt); do args="$args -engine cmd=./$t name=$t"; done
           ./fastchess-bin -engine cmd=ours/engine name=KavinEngine $args \
             -each tc=${{ inputs.tc }} option.Hash=16 -tournament gauntlet -seeds 1 \
             -openings file=8moves_v3.pgn format=pgn order=random -srand $(( ${{ github.run_id }} % 100000 * 100 + ${{ matrix.job }} )) \
@@ -76,7 +84,7 @@ jobs:
           for g in open("games.pgn").read().split("[Event ")[1:]:
               h = dict(re.findall(r'\[(\w+) "([^"]*)"\]', g))
               me = "White" if h["White"] == "KavinEngine" else "Black"
-              opp = h["Black" if me == "White" else "White"].removeprefix("Stash-")
+              opp = h["Black" if me == "White" else "White"]
               r = res.setdefault(opp, {"w": 0, "d": 0, "l": 0, "time_losses": 0})
               out = {"1-0": "White", "0-1": "Black"}.get(h["Result"], "draw")
               r["d" if out == "draw" else "w" if out == me else "l"] += 1

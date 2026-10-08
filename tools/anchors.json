@@ -1,0 +1,82 @@
+[
+ {
+  "name": "stash-v27.0",
+  "repo": "https://github.com/mhouppin/stash-bot",
+  "tag": "v27.0",
+  "build": "sed -i 's/-Werror//' src/Makefile && make -C src -s -j4",
+  "binary": "src/stash-bot",
+  "id_contains": "27.0",
+  "rating": 3049,
+  "source": "CCRL Blitz list 2026-10-03"
+ },
+ {
+  "name": "stash-v29.0",
+  "repo": "https://github.com/mhouppin/stash-bot",
+  "tag": "v29.0",
+  "build": "sed -i 's/-Werror//' src/Makefile && make -C src -s -j4",
+  "binary": "src/stash-bot",
+  "id_contains": "29.0",
+  "rating": 3128,
+  "source": "CCRL Blitz list 2026-10-03"
+ },
+ {
+  "name": "stash-v32.0",
+  "repo": "https://github.com/mhouppin/stash-bot",
+  "tag": "v32.0",
+  "build": "sed -i 's/-Werror//' src/Makefile && make -C src -s -j4",
+  "binary": "src/stash-bot",
+  "id_contains": "32.0",
+  "rating": 3240,
+  "source": "CCRL Blitz list 2026-10-03"
+ },
+ {
+  "name": "stash-v33.0",
+  "repo": "https://github.com/mhouppin/stash-bot",
+  "tag": "v33.0",
+  "build": "sed -i 's/-Werror//' src/Makefile && make -C src -s -j4",
+  "binary": "src/stash-bot",
+  "id_contains": "33.0",
+  "rating": 3273,
+  "source": "CCRL Blitz list 2026-10-03"
+ },
+ {
+  "name": "stash-v34.0",
+  "repo": "https://github.com/mhouppin/stash-bot",
+  "tag": "v34.0",
+  "build": "sed -i 's/-Werror//' src/Makefile && make -C src -s -j4",
+  "binary": "src/stash-bot",
+  "id_contains": "34.0",
+  "rating": 3315,
+  "source": "CCRL Blitz list 2026-10-03"
+ },
+ {
+  "name": "stash-v35.0",
+  "repo": "https://github.com/mhouppin/stash-bot",
+  "tag": "v35.0",
+  "build": "sed -i 's/-Werror//' src/Makefile && make -C src -s -j4",
+  "binary": "src/stash-bot",
+  "id_contains": "35.0",
+  "rating": 3345,
+  "source": "CCRL Blitz list 2026-10-03"
+ },
+ {
+  "name": "stash-v36.0",
+  "repo": "https://github.com/mhouppin/stash-bot",
+  "tag": "v36.0",
+  "build": "sed -i 's/-Werror//' src/Makefile && make -C src -s -j4",
+  "binary": "src/stash-bot",
+  "id_contains": "36.0",
+  "rating": 3374,
+  "source": "CCRL Blitz list 2026-10-03"
+ },
+ {
+  "name": "stash-v37.0",
+  "repo": "https://github.com/mhouppin/stash-bot",
+  "tag": "v37.0",
+  "build": "sed -i 's/-Werror//' src/Makefile && make -C src -s -j4",
+  "binary": "src/stash",
+  "id_contains": "37.0",
+  "rating": 3417,
+  "source": "CCRL Blitz list 2026-10-03"
+ }
+]
