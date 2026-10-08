@@ -45,6 +45,26 @@ strength-optimal width for a given device and time control? (Plan: `docs/ultrash
 2. **Lower loss did not mean more Elo at short time controls** (also seen for output buckets: −20.5 Elo at lower loss). Strength depends on eval accuracy *and* speed, so the optimum must be measured in games, per device and per time control. This is the study's core question.
 3. **Data limits small sets hard:** at 15M positions the 128-wide net overfits badly. More data is worth more than more width below ~60M positions.
 
+## Time-limited strength model (2026-10-08)
+- **Model:** Elo_T(N) = Q(N) + κ·log2(nps(N) / nps(128)).
+  - Q(N) is the fixed-node Elo: −114000·(L(N) − L(128)), with L from the power law above.
+  - κ is the Elo per doubling of nodes.
+- **Fit to our table:** κ = 72 ± 8 per doubling (weighted fit over four widths). The fixed-node Elo carries over to 8+0.08 unchanged (scale factor 0.99 ± 0.04).
+- **Predicted vs measured** at 8+0.08:
+
+  | Width | Predicted | Measured |
+  |---|---|---|
+  | 256 | +22.5 | +14.8 ± 8.9 |
+  | 512 | +12.0 | +13.9 ± 9.0 |
+  | 32 | −115.6 | −129.4 ± 9.9 |
+  | 64 | −74.1 | −55.0 ± 9.1 (≈ 2σ) |
+
+- **Literature range:** κ = 76–146 (Stockfish wiki "Useful data": time-odds and speed-up tests). Ours sits near the long-time-control end.
+- **Cost model:** time per node ∝ c0 + N with c0 ≈ 381, so the eval share is p = N/(c0 + N) = 0.25, 0.40, 0.57 at N = 128, 256, 512.
+- **Optimum:** dQ/dlog2 N = κ·N/(c0 + N), which gives N\* ≈ 400. Anything from 245 to 663 is within 5 Elo, consistent with 256 ≈ 512 measured.
+- **What speed is worth:** 1 % nps ≈ 1 Elo. At N = 256, 1 % lower held-out loss ≈ 6 Elo ≈ 6 % nps. Widening trades accuracy for speed at break-even or worse; free accuracy (data, labels) and free speed (compiler, SIMD, caches) are what pay.
+- **First free speed-up:** clang++ instead of g++ on the cloud runners: **+8.0 % nps**, bench-identical (`nps` workflow). Model value ≈ +8 Elo. Every earlier cloud rating used g++ builds.
+
 ## Hypothesis to test next (falsifiable)
 On the ESP32-S3 (no SIMD for these kernels, ~100× slower per node), evaluation is a much larger share of each node. The speed cost per doubling should therefore be larger, and the timed optimum should shift **below** N = 128. It is falsified if the device-emulated optimum stays at ≥ 256.
 
