@@ -12,7 +12,7 @@ h = game.headers
 print(f"{h['White']} ({h.get('WhiteElo')}) vs {h['Black']} ({h.get('BlackElo')}), {h['TimeControl']}, "
       f"{h['Result']} {h.get('Termination')}")
 eng = chess.engine.SimpleEngine.popen_uci(engine_cmd)
-eng.configure({"Hash": 256})
+eng.configure({"Hash": 64})  # also runs on lynxS next to the Lichess bot
 
 
 def analyse(board):  # (eval in cp from White's view, best move); game over: exact result
