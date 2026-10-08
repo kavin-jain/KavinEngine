@@ -79,8 +79,8 @@ TEST(time_budget) {
     Limits l;
     l.time[WHITE] = 60000; l.inc[WHITE] = 600;
     TimeBudget t = compute_budget(l, WHITE);
-    CHECK_EQ(t.soft, 3300);   // 60000/20 + 600/2
-    CHECK_EQ(t.hard, 9900);   // 3 * soft, below 60000 - 50
+    CHECK_EQ(t.soft, 2300);   // 60000/30 + 600/2
+    CHECK_EQ(t.hard, 6900);   // 3 * soft, below 60000 - 50
     l.time[WHITE] = 40; l.inc[WHITE] = 0;
     t = compute_budget(l, WHITE);
     CHECK_EQ(t.hard, 1);
@@ -95,12 +95,12 @@ TEST(time_budget) {
     l = Limits{};
     l.time[WHITE] = 60000; l.inc[WHITE] = 600;
     t = compute_budget(l, WHITE);
-    CHECK_EQ(t.soft, 2300); CHECK_EQ(t.hard, 6900);
+    CHECK_EQ(t.soft, 1633); CHECK_EQ(t.hard, 4899);   // 40000/30 + 300
     l.time[WHITE] = 15000;
     t = compute_budget(l, WHITE);
     CHECK_EQ(t.soft, 300); CHECK_EQ(t.hard, 900);
     l.inc[WHITE] = 0;  // no increment: plans with half the clock
     t = compute_budget(l, WHITE);
-    CHECK_EQ(t.soft, 375);
+    CHECK_EQ(t.soft, 250);   // 7500/30
     g_clock_reserve = 0;
 }

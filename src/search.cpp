@@ -306,7 +306,7 @@ TimeBudget compute_budget(const Limits& l, Color us) {
     // flag the Lichess bot. At or below it the engine spends about half the increment, so the clock stays near the
     // reserve (with no increment it plans with half the clock). 0 (default) leaves the budget unchanged.
     const int64_t plan = g_clock_reserve > 0 ? std::max<int64_t>(t - g_clock_reserve, inc ? 0 : t / 2) : t;
-    int64_t soft = (l.movestogo > 0 ? plan / (l.movestogo + 1) : plan / 20) + inc / 2;
+    int64_t soft = (l.movestogo > 0 ? plan / (l.movestogo + 1) : plan / 30) + inc / 2;
     // Online play: set Move Overhead above the network lag, or the hard limit (which can reach t - overhead) flags.
     // A quarter-clock cap on top failed non-regression at 8+0.08 (-12.7 +- 6.2, 2026-10-08).
     int64_t hard = std::max<int64_t>(1, std::min(3 * soft, t - overhead));
