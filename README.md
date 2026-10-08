@@ -38,6 +38,7 @@ A from-scratch UCI chess engine in C++17 that runs on a PC and on a ~$10 ESP32-S
   - Licence: Lc0 training data is under the **Open Database License (ODbL)**, and this net is a Produced Work from it.
   - Method: the full pipeline is in this repository (`tools/kaggle/train.py`, `train/`). Scores were rescaled to the engine's centipawns with `EVAL_SCALE` = 400 / (main-net eval / label slope) = 1106.
 - **Earlier nets.** Trained on the Lichess evaluation database (CC0; Stockfish evaluations) and on this engine's own self-play games (`tools/datagen.cpp`, releases `data-sp*`).
+- **Lichess bot only ([@KavinEngine](https://lichess.org/@/KavinEngine)).** Opening moves come from the Cerebellum Light 3Merge book by Thomas Zipproth ([zipproth.de/Brainfish](https://zipproth.de/Brainfish/download/), [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)), and positions with ≤ 6 pieces from Syzygy tablebases, both read by lichess-bot, not by the engine. Neither file is part of this repository. Ratings in this README are measured without them.
 - **What is ours.** The search, the network architecture and the training pipeline. The evaluation knowledge is distilled from Leela/Stockfish-derived data plus our own self-play. No Stockfish or Leela code or network weights are used.
 
 ## License
