@@ -100,16 +100,6 @@
   "source": "CCRL Blitz complete list 2026-10-03"
  },
  {
-  "name": "clover-3.3.1",
-  "repo": "https://github.com/lucametehau/CloverEngine",
-  "tag": "v3.3.1",
-  "build": "make -C src",
-  "binary": "src/Clover",
-  "id_contains": "Clover 3.3.1",
-  "rating": 3496,
-  "source": "CCRL Blitz complete list 2026-10-03"
- },
- {
   "name": "koivisto-7.0",
   "repo": "https://github.com/Luecx/Koivisto",
   "tag": "v7.0",
