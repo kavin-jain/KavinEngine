@@ -10,3 +10,8 @@ jobs:
       - uses: actions/checkout@v4
       - run: make -j4 -s test
       - run: make -j4 -s CXX=clang++ && ./engine bench | tail -1
+      - name: Data tools build with both compilers (the Kaggle trainer uses g++)
+        run: |
+          for c in g++ clang++; do
+            make -s CXX=$c convert datagen && make -s CXX=$c loss NNUE_HIDDEN=256 NNUE_KB=10 NNUE_OB=8 && rm -rf build/lichess_convert build/datagen build/nnue_loss_256
+          done

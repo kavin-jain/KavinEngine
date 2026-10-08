@@ -6,6 +6,7 @@
 //                                          two data sets' s converts one's score units into the other's
 //   lichess_convert text MAX < jsonl       "FEN | cp | 0.5" lines for kept positions (bullet-utils cross-check)
 //   lichess_convert binary OUT MAX < jsonl same positions as `text`, as records in one file
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <random>
