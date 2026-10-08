@@ -78,5 +78,75 @@
   "id_contains": "37.0",
   "rating": 3417,
   "source": "CCRL Blitz list 2026-10-03"
+ },
+ {
+  "name": "ethereal-12.75",
+  "repo": "https://github.com/AndyGrant/Ethereal",
+  "tag": "v12.75",
+  "build": "make -C src",
+  "binary": "src/Ethereal",
+  "id_contains": "Ethereal 12.75",
+  "rating": 3424,
+  "source": "CCRL Blitz complete list 2026-10-03"
+ },
+ {
+  "name": "halogen-11",
+  "repo": "https://github.com/KierenP/Halogen",
+  "tag": "v11",
+  "build": "make -C src",
+  "binary": "bin/Halogen-native.exe",
+  "id_contains": "Halogen 11",
+  "rating": 3425,
+  "source": "CCRL Blitz complete list 2026-10-03"
+ },
+ {
+  "name": "clover-3.3.1",
+  "repo": "https://github.com/lucametehau/CloverEngine",
+  "tag": "v3.3.1",
+  "build": "make -C src",
+  "binary": "src/Clover",
+  "id_contains": "Clover 3.3.1",
+  "rating": 3496,
+  "source": "CCRL Blitz complete list 2026-10-03"
+ },
+ {
+  "name": "koivisto-7.0",
+  "repo": "https://github.com/Luecx/Koivisto",
+  "tag": "v7.0",
+  "build": "make -C src_files",
+  "binary": "bin/Koivisto_7.0",
+  "id_contains": "Koivisto 7.0",
+  "rating": 3529,
+  "source": "CCRL Blitz complete list 2026-10-03"
+ },
+ {
+  "name": "berserk-8.5",
+  "repo": "https://github.com/jhonnold/berserk",
+  "tag": "8.5",
+  "build": "make -C src VERSION=8.5",
+  "binary": "src/berserk",
+  "id_contains": "Berserk 8.5",
+  "rating": 3575,
+  "source": "CCRL Blitz complete list 2026-10-03"
+ },
+ {
+  "name": "altair-7.0.0",
+  "repo": "https://github.com/Alex2262/AltairChessEngine",
+  "tag": "v7.0.0",
+  "build": "make CXX=g++",
+  "binary": "Altair",
+  "id_contains": "Altair 7.0.0",
+  "rating": 3579,
+  "source": "CCRL Blitz complete list 2026-10-03"
+ },
+ {
+  "name": "alexandria-6.0.0",
+  "repo": "https://github.com/PGG106/Alexandria",
+  "tag": "v6.0.0",
+  "build": "make",
+  "binary": "Alexandria",
+  "id_contains": "Alexandria-6.0",
+  "rating": 3630,
+  "source": "CCRL Blitz complete list 2026-10-03"
  }
 ]
