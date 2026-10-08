@@ -143,7 +143,9 @@ def cmd_analyze(gid=None, run=False):
     body = head + [f"Stockfish eval (+ = White): " + " | ".join(f"m{t[0][:-1]} {int(t[2]) / 100:+.1f}" for t in trend
                                                                  if t[2].lstrip('-').isdigit())]
     body += [f"Our mistakes ({len(ours)}):"] + ours[:12] + [f"All mistakes, both sides: {len(mistakes)}", f"lichess.org/{gid}"]
-    subprocess.run([str(HERMES), "send", "-t", "telegram", "-q"], input="\n".join(body), text=True)
+    sent = subprocess.run([str(HERMES), "send", "-t", "telegram", "-q"], input="\n".join(body), text=True).returncode
+    with open(STATE.parent / "analyze.log", "a") as log:  # background job: the only trace of what was sent
+        log.write(f"{time.strftime('%F %T')} {gid} hermes-send exit {sent}\n" + "\n".join(body) + "\n\n")
 
 
 if __name__ == "__main__":
