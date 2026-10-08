@@ -67,4 +67,16 @@ TEST(time_budget) {
     Limits d;  // depth-only search: no clock
     t = compute_budget(d, WHITE);
     CHECK_EQ(t.hard, -1);
+    g_clock_reserve = 20000;  // plans with 40 s of 60 s; below the reserve, half the increment
+    l = Limits{};
+    l.time[WHITE] = 60000; l.inc[WHITE] = 600;
+    t = compute_budget(l, WHITE);
+    CHECK_EQ(t.soft, 2300); CHECK_EQ(t.hard, 6900);
+    l.time[WHITE] = 15000;
+    t = compute_budget(l, WHITE);
+    CHECK_EQ(t.soft, 300); CHECK_EQ(t.hard, 900);
+    l.inc[WHITE] = 0;  // no increment: plans with half the clock
+    t = compute_budget(l, WHITE);
+    CHECK_EQ(t.soft, 375);
+    g_clock_reserve = 0;
 }
