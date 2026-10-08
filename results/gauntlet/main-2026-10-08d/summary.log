@@ -1,0 +1,5 @@
+gauntlet main-2026-10-08d (f9d8e3a, tc 60+0.6, book 8moves_v3, 8/8 jobs)
+  vs Stash v33.0 (3273): +139 =90 -11 score 76.7% perf 3480 time losses 0
+  vs Stash v35.0 (3345): +110 =110 -20 score 68.8% perf 3482 time losses 0
+  vs Stash v37.0 (3417): +52 =148 -40 score 52.5% perf 3434 time losses 0
+RESULT main-2026-10-08d: CCRL Blitz-anchored rating 3463 ± 18 over 720 games

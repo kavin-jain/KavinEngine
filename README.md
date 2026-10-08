@@ -8,7 +8,7 @@ A from-scratch UCI chess engine in C++17 that runs on a PC and on a ~$10 ESP32-S
 - NNUE evaluation: a (768→256)×2→1 network trained on 236.8M Stockfish-evaluated Lichess positions, with incrementally updated accumulators. It beat the M1 PeSTO evaluation by **+557 ± 141 Elo** (SPRT H1, 154 games; `docs/sprt-log.md`).
 - ~3.3 M nodes/s single-threaded on an Apple M3. Bench signature: `13350441` nodes (`./engine bench`, depth 11), identical on macOS arm64 and Linux x86-64.
 - ESP32-S3 build embeds a 128-neuron net and compiles; on-device verification is pending.
-- Strength: the M1 (PeSTO) build scored 87.6 % over 1,000 games vs BBC 1.1 (CCRL Blitz 2020) → ~2359 ± 30 estimate. That is a one-opponent sanity check, not a CCRL rating; the NNUE build gets a multi-engine rating in M3. Games are in `results/`, method and caveats in `docs/measurements.md`.
+- Strength: **3449 ± 11 on the CCRL Blitz scale** (2026-10-08, Leela-data net): 1,536 games at 60+0.6 against 8 anchors from 7 engine families with known CCRL Blitz ratings (Stash 35/37, Ethereal 12.75, Halogen 11, Koivisto 7.0, Berserk 8.5, Altair 7.0.0, Alexandria 6.0.0), each built from its release tag and checked by its UCI name; rating fitted by maximum likelihood with the anchors held fixed (`tools/gauntlet.py`, games in `results/gauntlet/honest-2026-10-08/`). An estimate on CCRL's scale from our own hardware and time control, not an official CCRL rating. (History: the M1 PeSTO build was ~2359 vs BBC 1.1, `docs/measurements.md`.)
 
 ## Build and run
 | Target | Command |
