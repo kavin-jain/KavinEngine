@@ -180,7 +180,9 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
         && static_eval >= beta) {
         S.board.make_null();
         S.acc[ply + 1] = S.acc[ply];
-        int s = -negamax(-beta, -beta + 1, depth - 1 - (3 + depth / 6), ply + 1, false);
+        // Reduce more at depth and the further the eval is above beta (Stockfish/Ethereal-style R).
+        const int R = 3 + depth / 3 + std::min((static_eval - beta) / 200, 3);
+        int s = -negamax(-beta, -beta + 1, depth - 1 - R, ply + 1, false);
         S.board.unmake_null();
         if (S.stopped) return 0;
         if (s >= beta) return s >= MATE_BOUND ? beta : s;
