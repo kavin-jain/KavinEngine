@@ -220,8 +220,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
         } else {
             int r = 0;  // late move reductions for quiet, non-checking moves
             if (depth >= 3 && legal > 1 + 2 * pv_node && quiet && !in_check && !S.board.in_check())
-                // History-adjusted: moves that often caused cutoffs are reduced less, failures more (+-2 plies).
-                r = std::clamp(S.lmr[std::min(depth, 63)][std::min(legal, 63)] + !pv_node - hist / 8192, 0, std::max(0, new_depth - 1));
+                // History-adjusted: moves that often caused cutoffs are reduced less, failures more (+-4 plies).
+                r = std::clamp(S.lmr[std::min(depth, 63)][std::min(legal, 63)] + !pv_node - hist / 4096, 0, std::max(0, new_depth - 1));
             score = -negamax(-alpha - 1, -alpha, new_depth - r, ply + 1, true);
             if (score > alpha && r > 0) score = -negamax(-alpha - 1, -alpha, new_depth, ply + 1, true);
             if (score > alpha && score < beta) score = -negamax(-beta, -alpha, new_depth, ply + 1, true);
