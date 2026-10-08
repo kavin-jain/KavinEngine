@@ -206,6 +206,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
         // kept (they may mate), so the check test runs after make(); a futile move needs no SEE (both prunes need !check).
         const bool futile = !pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 6 && static_eval + 100 + 100 * depth <= alpha;
         const bool quiet_hangs = !futile && quiet && !pv_node && !in_check && best > -MATE_BOUND && depth <= 8 && !see_ge(S.board, m, -50 * depth);
+        const int hist = quiet ? S.history[S.board.stm][from_sq(m)][to_sq(m)] : 0;  // before make(): our side's table
         if (!S.board.make(m)) continue;
         if (futile && !S.board.in_check()) { S.board.unmake(m); continue; }
         if (quiet_hangs && !S.board.in_check()) { S.board.unmake(m); continue; }
@@ -219,7 +220,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
         } else {
             int r = 0;  // late move reductions for quiet, non-checking moves
             if (depth >= 3 && legal > 3 && quiet && !in_check && !S.board.in_check())
-                r = std::max(0, std::min<int>(S.lmr[std::min(depth, 63)][std::min(legal, 63)], new_depth - 1));
+                // History-adjusted: moves that often caused cutoffs are reduced less, failures more (+-2 plies).
+                r = std::clamp(S.lmr[std::min(depth, 63)][std::min(legal, 63)] - hist / 8192, 0, std::max(0, new_depth - 1));
             score = -negamax(-alpha - 1, -alpha, new_depth - r, ply + 1, true);
             if (score > alpha && r > 0) score = -negamax(-alpha - 1, -alpha, new_depth, ply + 1, true);
             if (score > alpha && score < beta) score = -negamax(-beta, -alpha, new_depth, ply + 1, true);
