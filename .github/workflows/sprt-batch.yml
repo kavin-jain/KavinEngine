@@ -10,10 +10,12 @@ on:
       batch: {description: "batch number (also the opening seed)", required: true}
       dev: {description: "dev commit", required: true}
       base: {description: "base commit", required: true}
-      tc: {description: "time control", default: "8+0.08"}
+      tc: {description: "time control, or nodes=N for a fixed node budget per move", default: "8+0.08"}
       rounds: {description: "game pairs per job", default: "100"}
       concurrency: {description: "games at once per job", default: "3"}
       jobs: {description: "JSON list of job numbers", default: "[1,2,3,4,5,6,7,8,9,10]"}
+      dev_make: {description: "extra make variables for dev (e.g. EVALFILE=nets/grid/x.bin NNUE_HIDDEN=64)", default: ""}
+      base_make: {description: "extra make variables for base", default: ""}
 
 permissions:
   contents: read
@@ -51,15 +53,16 @@ jobs:
 
       - name: Build engines and record bench
         run: |
-          make -C dev -j4 -s EXE=engine && make -C base -j4 -s EXE=engine
+          make -C dev -j4 -s EXE=engine ${{ inputs.dev_make }} && make -C base -j4 -s EXE=engine ${{ inputs.base_make }}
           echo "dev  $(dev/engine bench | tail -1)"  | tee bench.txt
           echo "base $(base/engine bench | tail -1)" | tee -a bench.txt
           nproc; grep -m1 "model name" /proc/cpuinfo
 
       - name: Play games
         run: |
+          lim="${{ inputs.tc }}"; case "$lim" in *=*) ;; *) lim="tc=$lim" ;; esac
           ./fastchess-bin -engine cmd=dev/engine name=new -engine cmd=base/engine name=base \
-            -each tc=${{ inputs.tc }} option.Hash=16 \
+            -each $lim option.Hash=16 \
             -openings file=UHO_Lichess_4852_v1.epd format=epd order=random \
             -srand $(( ${{ inputs.batch }} * 1000 + ${{ matrix.job }} )) \
             -rounds ${{ inputs.rounds }} -repeat -concurrency ${{ inputs.concurrency }} \

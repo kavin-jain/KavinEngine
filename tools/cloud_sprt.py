@@ -37,14 +37,17 @@ def main():
     ap.add_argument("--elo0", type=float, default=0.0); ap.add_argument("--elo1", type=float, default=5.0)
     ap.add_argument("--jobs", type=int, default=10); ap.add_argument("--rounds", type=int, default=100)
     ap.add_argument("--concurrency", type=int, default=3); ap.add_argument("--max-games", type=int, default=20000)
+    ap.add_argument("--dev-make", default=""); ap.add_argument("--base-make", default="")  # per-side make variables
+    ap.add_argument("--fixed", action="store_true")  # Elo estimate: play --max-games, ignore the SPRT bounds
     a = ap.parse_args()
     dev, base = run("git", "rev-parse", a.dev), run("git", "rev-parse", a.base)
     out = pathlib.Path(f"results/sprt/{a.id}-cloud"); out.mkdir(parents=True, exist_ok=True)
     state_f, log_f = out / "state.json", out / "summary.log"
     st = json.loads(state_f.read_text()) if state_f.exists() else {
         "dev": dev, "base": base, "tc": a.tc, "elo": [a.elo0, a.elo1], "batches": 0, "penta": [0] * 5,
-        "wins": 0, "losses": 0, "draws": 0, "games": 0, "time_losses": {"new": 0, "base": 0}, "failed_jobs": 0}
-    if (st["dev"], st["base"], st["tc"]) != (dev, base, a.tc):
+        "wins": 0, "losses": 0, "draws": 0, "games": 0, "time_losses": {"new": 0, "base": 0}, "failed_jobs": 0,
+        "dev_make": a.dev_make, "base_make": a.base_make}
+    if (st["dev"], st["base"], st["tc"], st.get("dev_make", ""), st.get("base_make", "")) != (dev, base, a.tc, a.dev_make, a.base_make):
         sys.exit(f"{state_f} belongs to a different test; pick a new id")
     lower, upper = bounds()
 
@@ -61,6 +64,7 @@ def main():
                 if gh_json("workflow", "run", "sprt-batch.yml", "-f", f"id={a.id}", "-f", f"batch={b}", "-f", f"dev={dev}",
                            "-f", f"base={base}", "-f", f"tc={a.tc}", "-f", f"rounds={a.rounds}",
                            "-f", f"concurrency={a.concurrency}", "-f", "jobs=" + json.dumps(list(range(1, a.jobs + 1))),
+                           "-f", f"dev_make={a.dev_make}", "-f", f"base_make={a.base_make}",
                            ok_empty=True) is not None or find_run(title, tries=6):
                     break
                 time.sleep(60)
@@ -93,8 +97,8 @@ def main():
         log(f"batch {b}: games {st['games']} W{st['wins']} D{st['draws']} L{st['losses']} Ptnml {st['penta']} "
             f"Elo {e:+.1f} ± {ci:.1f} nElo {ne:+.1f} LLR {L:.2f} ({lower:.2f}, {upper:.2f}) [{a.elo0}, {a.elo1}] "
             f"time losses new {tl['new']} base {tl['base']} failed jobs {st['failed_jobs']}")
-        if L >= upper or L <= lower or st["games"] >= a.max_games:
-            verdict = "H1 accepted" if L >= upper else "H0 accepted" if L <= lower else "inconclusive (game cap)"
+        if (not a.fixed and (L >= upper or L <= lower)) or st["games"] >= a.max_games:
+            verdict = "fixed-games Elo estimate" if a.fixed else "H1 accepted" if L >= upper else "H0 accepted" if L <= lower else "inconclusive (game cap)"
             log(f"RESULT {a.id}: {verdict} after {st['games']} games, Elo {e:+.1f} ± {ci:.1f}, LLR {L:.2f}")
             return
 
