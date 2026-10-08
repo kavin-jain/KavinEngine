@@ -166,7 +166,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
     const bool pv_node = beta - alpha > 1;
     S.pv_len[ply] = ply;
     if (ply > 0) {
-        if (S.board.is_draw()) return 0;
+        if (S.board.is_draw(ply)) return 0;
         if (ply >= MAX_PLY - 1) return eval_at(ply);
     }
     const bool in_check = S.board.in_check();
