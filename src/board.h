@@ -36,8 +36,10 @@ public:
     bool attacked(int sq, Color by) const;
     int king_sq(Color c) const { return lsb(pieces[make_piece(c, KING)]); }
     bool in_check() const { return attacked(king_sq(stm), ~stm); }
-    bool is_repetition() const;
-    bool is_draw() const;               // 50-move rule, repetition, insufficient material
+    // ply_from_root: plies searched since the root. A repeat of a position from inside the search is a draw at once;
+    // a position from the game before the root needs its third occurrence (0 = game level: threefold only).
+    bool is_repetition(int ply_from_root = 0) const;
+    bool is_draw(int ply_from_root = 0) const;  // 50-move rule, repetition, insufficient material
     bool has_non_pawn_material(Color c) const;
 
 private:

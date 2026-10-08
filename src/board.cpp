@@ -228,16 +228,20 @@ void Board::unmake_null() {
     key = st.key; castling = st.castling; ep = st.ep; halfmove = st.halfmove;
 }
 
-bool Board::is_repetition() const {
+bool Board::is_repetition(int ply_from_root) const {
     // history[i].key is the position at ply i; same side to move every 2 plies; nothing repeats across an irreversible move.
-    const int stop = game_ply - std::min(halfmove, game_ply);
+    // Counting one earlier occurrence from the game as a draw made the search score every return to a position the game
+    // had already seen as 0.00: a Lichess bot game (DVqBdJgj, 2026-10-09) "held a draw" by checks, then lost the rook
+    // ending. Same rule as Stockfish: draw if the earlier position is strictly after the root, or on the third occurrence.
+    const int stop = game_ply - std::min(halfmove, game_ply), root = game_ply - ply_from_root;
+    int seen = 0;
     for (int i = game_ply - 4; i >= stop; i -= 2)
-        if (history[i].key == key) return true;
+        if (history[i].key == key && (i > root || ++seen == 2)) return true;
     return false;
 }
 
-bool Board::is_draw() const {
-    if (halfmove >= 100 || is_repetition()) return true;
+bool Board::is_draw(int ply_from_root) const {
+    if (halfmove >= 100 || is_repetition(ply_from_root)) return true;
     const Bitboard heavy = pieces[make_piece(WHITE, PAWN)] | pieces[make_piece(BLACK, PAWN)]
                          | pieces[make_piece(WHITE, ROOK)] | pieces[make_piece(BLACK, ROOK)]
                          | pieces[make_piece(WHITE, QUEEN)] | pieces[make_piece(BLACK, QUEEN)];
