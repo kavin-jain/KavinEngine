@@ -93,17 +93,20 @@ def selected(base, mode, fraction, net="/tmp/ke/nets/wb-ft-w3.bin"):  # surprise
 
 DATA = {"lichess": lichess, "sp1": lambda: selfplay(("sp1", 6)), "sp2": lambda: selfplay(("sp2", 16)),
         "own": lambda: selfplay(("sp1", 6), ("sp2", 16)), "leela": leela,
-        "sp2-hard25": lambda: selected("sp2", "select", 0.25), "sp2-rand25": lambda: selected("sp2", "random", 0.25)}
+        "sp2-hard25": lambda: selected("sp2", "select", 0.25), "sp2-rand25": lambda: selected("sp2", "random", 0.25),
+        **{t: (lambda t=t: selfplay((t, 12))) for t in ("rl-none", "rl-sf19", "rl-leela", "sp3-25k")}}
+# Labels from another engine or search depth: EVAL_SCALE maps them to the main net's cp (the same rule for every arm).
+CALIBRATED = {"leela", "rl-none", "rl-sf19", "rl-leela", "sp3-25k"}
 ready = {}
 for net, hidden, sbs, wdl, data, init, lr in JOBS:
     if data not in ready: ready[data] = DATA[data]()
-    if data == "leela" and "scale" not in ready:  # Leela score units -> the main net's cp, so search margins still fit
-        ready["scale"] = 400 / eval_slope("/tmp/ke/nets/wb-ft-w3.bin", f"{ready['leela']}/train_00.bin")
-        print(f"leela EVAL_SCALE {ready['scale']:.1f}", flush=True)
+    if data in CALIBRATED and ("scale", data) not in ready:  # label units -> the main net's cp, so search margins fit
+        ready["scale", data] = 400 / eval_slope("/tmp/ke/nets/wb-ft-w3.bin", f"{ready[data]}/train_00.bin")
+        print(f"{data} EVAL_SCALE {ready['scale', data]:.1f}", flush=True)
     log = f"/kaggle/working/{net}.log"
     env = f"WDL={wdl} LR={lr}" + (f" INIT={T}/checkpoints/{init}" if init else "") + \
         (f" SHARDS={net.split('-s')[-1]}" if "-s" in net and net.split('-s')[-1].isdigit() else "")  # e.g. grid-w64-s8
-    if data == "leela": env += f" EVAL_SCALE={ready['scale']:.1f}"
+    if data in CALIBRATED: env += f" EVAL_SCALE={ready['scale', data]:.1f}"
     # Full log to a file; one line per superbatch to stdout, visible live via `kaggle kernels logs -f`.
     sh(f"set -o pipefail; cd {T} && {env} target/release/train {hidden} {sbs} {net} {ready[data]} 2>&1 | tee {log} | "
        f"stdbuf -oL tr '\\r' '\\n' | grep --line-buffered -a 'running loss'")
