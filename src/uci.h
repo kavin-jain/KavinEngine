@@ -12,7 +12,7 @@
 #define BENCH_DEPTH 11
 #endif
 #ifndef ENGINE_NAME
-#define ENGINE_NAME "Chess-Engine 0.1"
+#define ENGINE_NAME "KavinEngine 1.0"
 #endif
 
 extern const char* const BENCH_FENS[];

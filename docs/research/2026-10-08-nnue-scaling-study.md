@@ -1,7 +1,7 @@
 # NNUE scaling study (Track B): results log
 
 **Question:** how do playing strength and evaluation accuracy scale with network width and training data, and where is the
-strength-optimal width for a given device and time control? (Plan: `docs/ultraship/plans/2026-10-07-roadmap-to-3200.md`.)
+strength-optimal width for a given device and time control?
 
 ## Setup (fixed across all nets)
 - **Architecture:** (768 × 10 mirrored king buckets → N) × 2 → 8 output buckets (MaterialCount), SCReLU, factoriser.

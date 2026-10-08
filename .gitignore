@@ -15,3 +15,8 @@ train/checkpoints/
 data/
 /engine-pesto
 /config.json
+
+# Internal working notes: kept locally, not published (Kavin, 2026-10-09)
+/docs/ultraship/
+/docs/explain-it-back/
+/tools/idle_run.sh
