@@ -43,6 +43,15 @@ inline bool is_capture(Move m) { return (flags_of(m) & 4) != 0; }
 inline bool is_promo(Move m) { return (flags_of(m) & 8) != 0; }
 inline PieceType promo_type(Move m) { return PieceType(KNIGHT + (flags_of(m) & 3)); }
 
+// Lazy SMP: helper search threads share the TT. ESP32 builds set SEARCH_THREADS_MAX=1 (no TLS, no std::thread).
+#ifndef SEARCH_THREADS_MAX
+#define SEARCH_THREADS_MAX 8
+#endif
+#if SEARCH_THREADS_MAX > 1
+#define SEARCH_TLS thread_local
+#else
+#define SEARCH_TLS
+#endif
 constexpr int INF = 32000;
 constexpr int MATE = 31000;
 constexpr int MATE_BOUND = MATE - MAX_PLY;  // |score| >= this means a forced mate

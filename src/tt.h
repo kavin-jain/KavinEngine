@@ -3,7 +3,7 @@
 #include "types.h"
 
 enum Bound : uint8_t { BOUND_NONE = 0, BOUND_UPPER = 1, BOUND_LOWER = 2, BOUND_EXACT = 3 };
-struct TTEntry { Key key; Move move; int16_t score; uint8_t depth; uint8_t bound; };  // 16 bytes
+struct TTEntry { Key key; Move move; int16_t score; uint8_t depth; uint8_t bound; };  // decoded entry
 
 class TT {
 public:
@@ -12,7 +12,9 @@ public:
     bool probe(Key key, TTEntry& out) const;
     void store(Key key, Move move, int score, int depth, int bound);
 private:
-    TTEntry* table = nullptr;
+    // Lazy SMP writes race: a slot stores key ^ data, so a slot torn between two writers fails the key check.
+    struct Slot { uint64_t check, data; };  // 16 bytes
+    Slot* table = nullptr;
     size_t mask = 0;
 };
 
