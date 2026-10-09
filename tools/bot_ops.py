@@ -159,7 +159,7 @@ IDLE_LIMIT, RESTART_GAP, BOT_GAMES_PER_DAY = 20 * 60, 30 * 60, 100  # Lichess al
 
 def cmd_watchdog():
     """Independent of lichess-bot's internals: if it stops playing for any reason, restart it and say so."""
-    path = STATE.with_name("watchdog.json")  # own file: wifi_drops() rewrites state.json whole
+    path = STATE.with_name("watchdog.json")  # own file: link_drops() rewrites state.json whole
     wd = json.loads(path.read_text()) if path.exists() else {}
     now = time.time()
     status = api(f"/api/users/status?ids={BOT}")[0]
