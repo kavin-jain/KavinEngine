@@ -58,11 +58,11 @@ Move parse_move(Board& b, const std::string& s) {
     return NO_MOVE;
 }
 
-void stop_search() { g_stop = true; join_worker(); g_stop = false; }  // reset: nothing is running now
+void stop_search() { g_pondering = false; g_stop = true; join_worker(); g_stop = false; }  // reset: nothing is running now
 
 void search_worker(void*) {
     SearchResult r = search(g_board, g_limits, true);
-    write_line("bestmove " + move_to_uci(r.best));
+    write_line("bestmove " + move_to_uci(r.best) + (r.ponder != NO_MOVE ? " ponder " + move_to_uci(r.ponder) : ""));
 }
 
 int g_bench_depth = BENCH_DEPTH;
@@ -109,6 +109,7 @@ void start_go(std::istringstream& ss) {
     while (ss >> t) {
         int64_t v = 0;
         if (t == "infinite") { l.infinite = true; continue; }
+        if (t == "ponder") { l.ponder = true; continue; }
         if (!(ss >> v)) break;
         if (t == "wtime") l.time[WHITE] = std::max<int64_t>(0, v);
         else if (t == "btime") l.time[BLACK] = std::max<int64_t>(0, v);
@@ -122,6 +123,7 @@ void start_go(std::istringstream& ss) {
     }
     g_limits = l;
     g_stop = false;
+    g_pondering = l.ponder;
     start_worker(search_worker, nullptr);
 }
 
@@ -182,12 +184,16 @@ bool uci_command(const std::string& raw) {
         write_line("option name Move Overhead type spin default 50 min 0 max 5000");
         write_line("option name Clock Reserve type spin default 0 min 0 max 120000");
         write_line("option name Threads type spin default " + std::to_string(g_threads) + " min 1 max " + std::to_string(SEARCH_THREADS_MAX));
+#if SEARCH_THREADS_MAX > 1
+        write_line("option name Ponder type check default false");  // GUIs send "go ponder" only when this is on
+#endif
         write_line("uciok");
     } else if (cmd == "isready") write_line("readyok");
     else if (cmd == "ucinewgame") { stop_search(); clear_search_state(); }
     else if (cmd == "position") { stop_search(); set_position(ss); }
     else if (cmd == "go") { stop_search(); start_go(ss); }
     else if (cmd == "stop") stop_search();
+    else if (cmd == "ponderhit") g_pondering = false;  // the expected move was played: the clock is on from now
     else if (cmd == "setoption") { stop_search(); set_option(ss); }
     else if (cmd == "bench") { stop_search(); int d = 0; ss >> d; g_bench_depth = d > 0 ? d : BENCH_DEPTH; start_worker(bench_worker, nullptr); }
     else if (cmd == "d") write_line(g_board.fen());

@@ -5,6 +5,7 @@
 #include <cstring>
 #include <string>
 #if SEARCH_THREADS_MAX > 1
+#include <chrono>
 #include <thread>
 #include <vector>
 #endif
@@ -19,6 +20,7 @@ TT g_tt;
 #endif
 static_assert((CORRHIST_SIZE & (CORRHIST_SIZE - 1)) == 0, "CORRHIST_SIZE must be a power of two");
 std::atomic<bool> g_stop{false};
+std::atomic<bool> g_pondering{false};
 int g_move_overhead = 50;
 int g_clock_reserve = 0;
 #ifndef DEFAULT_THREADS
@@ -101,7 +103,7 @@ bool should_stop() {
     if (S->limits.nodes && S->nodes >= S->limits.nodes) return S->stopped = true;
     if ((S->nodes & 1023) == 0 &&
         (g_stop.load(std::memory_order_relaxed) || g_helpers_stop.load(std::memory_order_relaxed)
-         || (S->budget.hard >= 0 && now_ms() - S->start >= S->budget.hard)))
+         || (S->budget.hard >= 0 && !g_pondering.load(std::memory_order_relaxed) && now_ms() - S->start >= S->budget.hard)))
         S->stopped = true;
     return S->stopped;
 }
@@ -390,15 +392,34 @@ static SearchResult iterate(const Board& root, const Limits& limits, bool verbos
         // (node-share and stability scaling of the soft limit; the constants are SPSA candidates).
         stable = res.best == prev_best ? std::min(stable + 1, 4) : 0;
         prev_best = res.best;
-        if (S->budget.soft >= 0) {
+        if (S->budget.soft >= 0 && !g_pondering) {
             static constexpr double STABILITY[5] = {1.25, 1.10, 1.00, 0.90, 0.80};
             const double share = double(S->root_nodes[from_sq(res.best)][to_sq(res.best)]) / double(std::max<uint64_t>(S->nodes, 1));
             if (now_ms() - S->start >= int64_t(double(S->budget.soft) * (1.5 - share) * 1.35 * STABILITY[stable])) break;
         }
         if (limits.nodes && S->nodes >= limits.nodes) break;
     }
+    // A ponder search may not answer before ponderhit or stop (UCI), even when it has run out of depth. The clock
+    // starts at "go ponder", so after a ponderhit the time already spent counts and the hard limit may stop at once.
+#if SEARCH_THREADS_MAX > 1  // pondering needs a second thread to read "ponderhit"; single-thread builds never ponder
+    while (limits.ponder && g_pondering && !g_stop) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+#endif
     res.nodes = S->nodes;
     return res;
+}
+
+// The reply we expect to res.best, for "bestmove ... ponder": the PV's second move, else the TT move after it.
+static Move expected_reply(const Board& root, Move best) {
+    if (S->pv_len[0] > 1 && S->pv[0][0] == best) return S->pv[0][1];
+    Board b = root;
+    if (!b.make(best)) return NO_MOVE;
+    TTEntry tte;
+    if (!g_tt.probe(b.key, tte) || tte.move == NO_MOVE) return NO_MOVE;
+    MoveList l;
+    generate(b, l, false);
+    for (int i = 0; i < l.size; ++i)
+        if (l.moves[i] == tte.move && b.make(tte.move)) { b.unmake(tte.move); return tte.move; }
+    return NO_MOVE;
 }
 
 // Lazy SMP: helpers run the same iterative deepening with no clock and share the TT; the main thread alone manages
@@ -412,6 +433,7 @@ SearchResult search(const Board& root, const Limits& limits, bool verbose) {
     helper.movetime = 0;
     helper.nodes = 0;
     helper.infinite = true;
+    helper.ponder = false;  // only the main thread waits for ponderhit
     std::vector<std::thread> helpers;
     for (int t = 1; t < std::min(g_threads, SEARCH_THREADS_MAX); ++t) {
         searchers[t].nodes = 0;  // before the thread starts, so total_nodes() never counts an old search
@@ -419,6 +441,7 @@ SearchResult search(const Board& root, const Limits& limits, bool verbose) {
     }
 #endif
     SearchResult res = iterate(root, limits, verbose);
+    res.ponder = expected_reply(root, res.best);
 #if SEARCH_THREADS_MAX > 1
     g_helpers_stop = true;
     for (std::thread& h : helpers) h.join();
