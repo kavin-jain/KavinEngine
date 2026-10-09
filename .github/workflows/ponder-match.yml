@@ -24,10 +24,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {ref: "${{ inputs.dev }}", path: dev}
-      - name: Install cutechess-cli, fetch book (SHA-checked), build engine
+      - name: Cache cutechess-cli
+        id: cache
+        uses: actions/cache@v4
+        with: {path: cutechess-cli, key: cutechess-cli-v1.5.1-qt6}
+      - name: Build cutechess-cli v1.5.1 (no Linux CLI release), fetch book (SHA-checked), build engine
         run: |
-          sudo apt-get -qq update > /dev/null && sudo apt-get -qq install -y cutechess > /dev/null
-          CC=$(command -v cutechess-cli || echo /usr/games/cutechess-cli); echo "CC=$CC" >> "$GITHUB_ENV"; $CC --version | head -1
+          sudo apt-get -qq update > /dev/null && sudo apt-get -qq install -y qt6-base-dev cmake > /dev/null
+          if [ ! -x cutechess-cli ]; then
+            git clone -q --depth 1 -b v1.5.1 https://github.com/cutechess/cutechess cc
+            cmake -S cc -B cc/build -DCMAKE_BUILD_TYPE=Release > /dev/null && cmake --build cc/build -j4 --target cli > /dev/null
+            cp "$(find cc/build -name cutechess-cli -type f | head -1)" cutechess-cli
+          fi
+          CC=$PWD/cutechess-cli; echo "CC=$CC" >> "$GITHUB_ENV"; $CC --version | head -1
           curl -sSL -o uho.zip https://github.com/official-stockfish/books/raw/master/UHO_Lichess_4852_v1.epd.zip
           python3 -m zipfile -e uho.zip .
           echo "7a7f6470615a69c6cf23d565417701d38732876f480af90d67b42abade35644a  UHO_Lichess_4852_v1.epd" | sha256sum -c -
