@@ -181,7 +181,7 @@ int qsearch(int alpha, int beta, int ply) {
     return best;
 }
 
-int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
+int negamax(int alpha, int beta, int depth, int ply, bool null_ok, Move excluded = NO_MOVE) {
     const bool pv_node = beta - alpha > 1;
     S->pv_len[ply] = ply;
     if (ply > 0) {
@@ -197,10 +197,11 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
 
     TTEntry tte;
     Move tt_move = NO_MOVE;
-    if (g_tt.probe(S->board.key, tte)) {
+    const bool tt_hit = g_tt.probe(S->board.key, tte);
+    if (tt_hit) {
         tt_move = tte.move;
         const int s = score_from_tt(tte.score, ply);
-        if (!pv_node && tte.depth >= depth &&
+        if (!pv_node && excluded == NO_MOVE && tte.depth >= depth &&
             (tte.bound == BOUND_EXACT || (tte.bound == BOUND_LOWER && s >= beta) || (tte.bound == BOUND_UPPER && s <= alpha)))
             return s;
     }
@@ -213,11 +214,11 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
     S->eval_stack[ply] = static_eval;
 
     // Reverse futility pruning: this far above beta near the leaves, assume the node fails high.
-    if (!pv_node && !in_check && depth <= 8 && std::abs(beta) < MATE_BOUND && static_eval - 80 * depth >= beta)
+    if (!pv_node && !in_check && excluded == NO_MOVE && depth <= 8 && std::abs(beta) < MATE_BOUND && static_eval - 80 * depth >= beta)
         return static_eval;
 
     // Null-move pruning: if passing still fails high, this node is very likely a cut-node.
-    if (!pv_node && !in_check && null_ok && depth >= 3 && S->board.has_non_pawn_material(S->board.stm)
+    if (!pv_node && !in_check && null_ok && excluded == NO_MOVE && depth >= 3 && S->board.has_non_pawn_material(S->board.stm)
         && static_eval >= beta) {
         S->board.make_null();
         S->acc[ply + 1] = S->acc[ply];
@@ -225,6 +226,19 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
         S->board.unmake_null();
         if (S->stopped) return 0;
         if (s >= beta) return s >= MATE_BOUND ? beta : s;
+    }
+
+    // Singular extension: if every move but the TT move fails low against a margin below the TT score, the TT move
+    // is the only good one here, so search it one ply deeper. If another move also beats beta, two moves refute this
+    // node and it can be cut (multi-cut).
+    int extension = 0;
+    if (ply > 0 && excluded == NO_MOVE && depth >= 8 && tt_hit && tt_move != NO_MOVE && tte.depth >= depth - 3
+        && (tte.bound & BOUND_LOWER) && std::abs(score_from_tt(tte.score, ply)) < MATE_BOUND) {
+        const int singular_beta = score_from_tt(tte.score, ply) - 2 * depth;
+        const int s = negamax(singular_beta - 1, singular_beta, (depth - 1) / 2, ply, false, tt_move);
+        if (S->stopped) return 0;
+        if (s < singular_beta) extension = 1;
+        else if (singular_beta >= beta) return singular_beta;
     }
 
     MoveList list;
@@ -238,6 +252,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
     Move best_move = NO_MOVE;
     for (int i = 0; i < list.size; ++i) {
         const Move m = pick(list, scores, see_pending, i);
+        if (m == excluded) continue;
         const bool quiet = !is_capture(m) && !is_promo(m);
         // SEE pruning: near the leaves, skip captures that lose material by force...
         if (!pv_node && !in_check && !quiet && best > -MATE_BOUND && depth <= 8 && !see_ge(S->board, m, -20 * depth * depth))
@@ -252,7 +267,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
         if (quiet_hangs && !S->board.in_check()) { S->board.unmake(m); continue; }
         if (nnue_ready()) nnue_update(S->acc[ply], S->acc[ply + 1], S->board);
         ++legal;
-        const int new_depth = depth - 1;
+        const int new_depth = depth - 1 + (m == tt_move ? extension : 0);
         const uint64_t nodes_before = S->nodes;
         int score;
         if (legal == 1) {
@@ -289,8 +304,9 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok) {
         }
         if (quiet && n_quiets < 64) quiets[n_quiets++] = m;
     }
-    if (legal == 0) return in_check ? -MATE + ply : 0;
+    if (legal == 0) return excluded != NO_MOVE ? alpha : in_check ? -MATE + ply : 0;
     // Learn from the search result unless the bound says nothing about the eval's error.
+    if (excluded != NO_MOVE) return best;  // a partial search: no TT entry, no correction learning
     if (!in_check && (best_move == NO_MOVE || !is_capture(best_move)) && std::abs(best) < MATE_BOUND
         && !(best >= beta && best <= static_eval) && !(best <= alpha0 && best >= static_eval)) {
         int16_t& c = S->corr[S->board.stm][pawn_index(S->board)];
