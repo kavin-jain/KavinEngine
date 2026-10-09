@@ -1,0 +1,25 @@
+# ESP32-S3 firmware build (PlatformIO) for a commit: proves it still compiles and prints static RAM / flash use, so a
+# PC-side change that outgrows the microcontroller is caught without the board attached.
+name: esp32
+run-name: "esp32 ${{ inputs.ref || github.sha }}"
+on:
+  workflow_dispatch:
+    inputs:
+      ref: {description: "engine commit", required: false, default: ""}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ inputs.ref || github.sha }}"}
+      - uses: actions/cache@v4
+        with: {path: ~/.platformio, key: pio-espressif32-7.0.1}
+      - name: Build firmware
+        run: |
+          pip install -q platformio
+          pio run -d esp32 -e s3 2>&1 | tee build.log | tail -25
+          grep -E "^(RAM|Flash):" build.log
