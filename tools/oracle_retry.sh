@@ -30,6 +30,7 @@ while true; do
   case "$reason" in
     Out*) sleep $(( 90 + RANDOM % 60 )) ;;
     TooManyRequests) sleep $(( 300 + RANDOM % 120 )) ;;
+    "") sleep 120 ;;  # no answer from Oracle at all: the home network is down, try again later
     *) echo "$out" | head -20; "$HOME/.local/bin/hermes" send -t telegram -q <<< "⚠️ Oracle retry stopped: ${reason:-unexpected error}. Ask Claude to check (journalctl --user -u oracle-retry)."; exit 1 ;;
   esac
 done
