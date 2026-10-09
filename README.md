@@ -1,7 +1,7 @@
 # KavinEngine: a chess engine built from scratch that beats Ethereal and Halogen
 
 A UCI chess engine in C++17, written from an empty file in October 2026: bitboard move generation, an alpha-beta search and
-a neural-network evaluation (NNUE) trained on GPUs in the cloud. It plays at **~3449 on the CCRL Blitz scale**, measured
+a neural-network evaluation (NNUE) trained on GPUs in the cloud. It plays at **~3495 on the CCRL Blitz scale**, measured
 against eight independent engines, and it runs as a **live bot on Lichess**. The same source also compiles for a ~$10
 ESP32-S3 microcontroller.
 
@@ -10,8 +10,8 @@ ESP32-S3 microcontroller.
 
 | | |
 |---|---|
-| **Strength** | **3449 ± 11** on the CCRL Blitz scale: 1,536 games against 8 engines from 7 families ([below](#how-strong-is-it)) |
-| **Beats** | Ethereal 12.75 (55.2 %), Halogen 11 (56.8 %), Stash 35/37 |
+| **Strength** | **3495 ± 11** on the CCRL Blitz scale: 1,536 games against 8 engines from 7 families ([below](#how-strong-is-it)); 3449 ± 11 the day before |
+| **Beats** | Ethereal 12.75 (59.4 %), Halogen 11 (61.2 %), Stash 35/37; Koivisto 7.0 nearly even (45.8 %) |
 | **Lichess** | blitz 2463 after 128 games (rapid still provisional), on a 2-core home server |
 | **Tested** | 39 logged tests, **151,992 games**, mostly on up to 40 parallel cloud machines; failures are logged too ([docs/sprt-log.md](docs/sprt-log.md)) |
 | **Gained in one day** | 3288 → 3377 → **3463** against the same Stash anchors (2026-10-08): speed-ups, then a net trained on Leela Chess Zero data |
@@ -49,22 +49,22 @@ flowchart LR
 ## How strong is it
 
 Rated by maximum likelihood against engines whose CCRL Blitz ratings are known, each built from its official release tag
-and checked by name before playing ([tools/gauntlet.py](tools/gauntlet.py), games in
-[results/gauntlet/honest-2026-10-08](results/gauntlet/honest-2026-10-08/)):
+and checked by name before playing ([tools/gauntlet.py](tools/gauntlet.py)). Same 8 opponents and 1,536 games
+(60+0.6, one thread) on both days; games in [results/gauntlet/](results/gauntlet/):
 
-| Opponent (family) | Their CCRL Blitz | Our score | Our performance |
-|---|---|---|---|
-| Stash 35 | 3345 | 62.2 % | 3432 |
-| Stash 37 | 3417 | 53.9 % | 3444 |
-| Ethereal 12.75 | 3424 | **55.2 %** | 3460 |
-| Halogen 11 | 3425 | **56.8 %** | 3472 |
-| Koivisto 7.0 | 3529 | 41.7 % | 3471 |
-| Berserk 8.5 | 3575 | 28.9 % | 3419 |
-| Altair 7.0.0 | 3579 | 33.9 % | 3463 |
-| Alexandria 6.0.0 | 3630 | 23.4 % | 3424 |
+| Opponent (family) | Their CCRL Blitz | Score 2026-10-08 | Score 2026-10-09 | Performance 2026-10-09 |
+|---|---|---|---|---|
+| Stash 35 | 3345 | 62.2 % | 73.7 % | 3524 |
+| Stash 37 | 3417 | 53.9 % | 63.0 % | 3510 |
+| Ethereal 12.75 | 3424 | 55.2 % | **59.4 %** | 3490 |
+| Halogen 11 | 3425 | 56.8 % | **61.2 %** | 3504 |
+| Koivisto 7.0 | 3529 | 41.7 % | 45.8 % | 3500 |
+| Berserk 8.5 | 3575 | 28.9 % | 35.2 % | 3469 |
+| Altair 7.0.0 | 3579 | 33.9 % | 39.1 % | 3502 |
+| Alexandria 6.0.0 | 3630 | 23.4 % | 27.1 % | 3458 |
 
-Every per-opponent performance lands between 3419 and 3472, so no single family drives the number.
-**Fit: 3449 ± 11** (95 %).
+**Fit: 3495 ± 11** (95 %), up from 3449 ± 11 on 2026-10-08: singular extensions, threat-aware history and a
+profile-guided build in one day. The score rose against every opponent.
 
 ## How every change is tested
 
