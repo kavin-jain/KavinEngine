@@ -128,7 +128,7 @@ best width lies for a given device ([docs/research/2026-10-08-nnue-scaling-study
 |---|---|
 | Engine (UCI, any GUI or lichess-bot) | `make` → `./engine` |
 | Tests | `make test` |
-| Bench signature | `./engine bench` → `2553855` nodes |
+| Bench signature | `./engine bench` → `2458739` nodes |
 | ESP32-S3 | `cd esp32 && pio run -e s3 -t upload`, then UCI over USB: `python tools/uci_bridge.py /dev/cu.usbmodemXXXX` |
 
 ## Layout
