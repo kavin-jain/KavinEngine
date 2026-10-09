@@ -74,8 +74,14 @@ def main():
             time.sleep(1)
         return
     dry = "--dry-run" in args
-    me = call("/api/account")["id"]
-    teams = [t["id"] for t in call(f"/api/team/of/{me}")]
+    account = call("/api/account")
+    if "id" not in account:  # network outage or API error (a KeyError here killed the 2026-10-09 19:34 and 19:52 runs)
+        sys.exit(f"{time.strftime('%F %T')} account lookup failed: {account.get('error')}")
+    me = account["id"]
+    team_list = call(f"/api/team/of/{me}")
+    if not isinstance(team_list, list):
+        sys.exit(f"{time.strftime('%F %T')} team lookup failed: {team_list.get('error')}")
+    teams = [t["id"] for t in team_list]
     joined = set(json.load(open(STATE))) if os.path.exists(STATE) else set()
     now = time.time() * 1000
     seen = set()
