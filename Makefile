@@ -31,6 +31,22 @@ $(NET_CPP): $(EVALFILE) tools/bin2cpp.py
 	@mkdir -p build
 	python3 tools/bin2cpp.py $< $@
 
+# Profile-guided build (`make pgo`): instrument, run bench, rebuild with the profile. Same search (same bench nodes),
+# faster code. clang needs llvm-profdata (PROFDATA=llvm-profdata-18 if only the versioned name is installed).
+PROFDATA ?= llvm-profdata
+pgo: $(SRC) $(HDR) pc/main.cpp $(NET_CPP)
+	@rm -rf build/pgo && mkdir -p build/pgo
+ifneq ($(findstring clang,$(CXX)),)
+	$(CXX) $(CXXFLAGS) -fprofile-instr-generate -o $(EXE) $(SRC) $(NET_CPP) pc/main.cpp -pthread
+	LLVM_PROFILE_FILE=build/pgo/%p.profraw ./$(EXE) bench > /dev/null
+	$(PROFDATA) merge -o build/pgo/default.profdata build/pgo/*.profraw
+	$(CXX) $(CXXFLAGS) -fprofile-instr-use=build/pgo/default.profdata -o $(EXE) $(SRC) $(NET_CPP) pc/main.cpp -pthread
+else
+	$(CXX) $(CXXFLAGS) -fprofile-generate -fprofile-dir=build/pgo -o $(EXE) $(SRC) $(NET_CPP) pc/main.cpp -pthread
+	./$(EXE) bench > /dev/null
+	$(CXX) $(CXXFLAGS) -fprofile-use -fprofile-dir=build/pgo -fprofile-correction -Wno-missing-profile -o $(EXE) $(SRC) $(NET_CPP) pc/main.cpp -pthread
+endif
+
 # PeSTO-evaluation build: the SPRT base for the NNUE gate.
 pesto: $(SRC) $(HDR) pc/main.cpp $(NET_CPP)
 	$(CXX) $(CXXFLAGS) -DUSE_PESTO -o engine-pesto $(SRC) $(NET_CPP) pc/main.cpp -pthread
