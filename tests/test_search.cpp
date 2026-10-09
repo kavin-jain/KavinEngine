@@ -1,5 +1,7 @@
 #include "test.h"
+#include <chrono>
 #include <cstdlib>
+#include <thread>
 #include "../src/search.h"
 
 static Board B;
@@ -74,6 +76,30 @@ TEST(node_limit_is_respected) {
     CHECK(r.nodes <= 5000 + 64);
     CHECK(r.best != NO_MOVE);
 }
+
+#if SEARCH_THREADS_MAX > 1
+TEST(ponder_waits_for_ponderhit) {
+    CHECK(B.set_fen(START_FEN));
+    clear_search_state();
+    Limits l;
+    l.time[WHITE] = l.time[BLACK] = 1000;  // a 1 s clock would end the search long before 300 ms of pondering
+    l.depth = 4;                            // done in milliseconds, yet the answer must wait for ponderhit
+    l.ponder = true;
+    g_pondering = true;
+    std::atomic<bool> done{false};
+    SearchResult r{};
+    std::thread t([&] { r = search(B, l, false); done = true; });
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    CHECK(!done);
+    g_pondering = false;  // ponderhit
+    t.join();
+    CHECK(r.best != NO_MOVE);
+    CHECK(r.ponder != NO_MOVE);  // the expected reply, legal after the best move
+    Board b = B;
+    CHECK(b.make(r.best));
+    CHECK(b.make(r.ponder));
+}
+#endif
 
 TEST(time_budget) {
     Limits l;
