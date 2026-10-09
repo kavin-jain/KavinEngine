@@ -81,6 +81,7 @@ the test stops as soon as the evidence is strong enough either way.
 | Aspiration windows | +71.2 ± 16.1 |
 | Net trained from scratch on 547M Leela Chess Zero positions | +65.0 ± 10.9 |
 | Self-play fine-tune of the net | +54.5 ± 12.0 |
+| Singular extensions with multi-cut | +42.6 ± 9.7 |
 | Futility pruning | +37.2 ± 11.3 |
 | SEE in quiescence search and capture ordering | +35.0 ± 7.1 |
 | King-bucketed network inputs | +24.5 ± 8.1 |
@@ -128,7 +129,7 @@ best width lies for a given device ([docs/research/2026-10-08-nnue-scaling-study
 |---|---|
 | Engine (UCI, any GUI or lichess-bot) | `make` → `./engine` |
 | Tests | `make test` |
-| Bench signature | `./engine bench` → `2458739` nodes |
+| Bench signature | `./engine bench` → `3901015` nodes |
 | ESP32-S3 | `cd esp32 && pio run -e s3 -t upload`, then UCI over USB: `python tools/uci_bridge.py /dev/cu.usbmodemXXXX` |
 
 ## Layout
