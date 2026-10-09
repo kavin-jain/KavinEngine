@@ -5,9 +5,6 @@
 #include <cstdlib>
 #include <iostream>
 #include <thread>
-#ifdef __linux__
-#include <sys/mman.h>
-#endif
 
 int64_t now_ms() {
     using namespace std::chrono;
@@ -22,18 +19,7 @@ void write_line(const std::string& line) {
     std::fflush(stdout);
 }
 
-void* alloc_mem(size_t bytes, bool) {
-#ifdef __linux__
-    // Large blocks (the TT) start on a 2 MB boundary and ask for transparent huge pages: fewer TLB misses per probe.
-    constexpr size_t HUGE_PAGE = size_t(2) << 20;
-    if (bytes >= HUGE_PAGE) {
-        void* p = std::aligned_alloc(HUGE_PAGE, (bytes + HUGE_PAGE - 1) / HUGE_PAGE * HUGE_PAGE);
-        if (p) madvise(p, bytes, MADV_HUGEPAGE);
-        return p;
-    }
-#endif
-    return std::malloc(bytes);
-}
+void* alloc_mem(size_t bytes, bool) { return std::malloc(bytes); }
 
 static std::thread worker;
 void start_worker(void (*fn)(void*), void* arg) { join_worker(); worker = std::thread(fn, arg); }
