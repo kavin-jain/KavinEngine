@@ -219,12 +219,23 @@ int qsearch(int alpha, int beta, int ply) {
     return best;
 }
 
+// Checkmate ends the game at once (FIDE Laws 5.1.1), so the move that completes the 50-move count can still mate.
+// Checked only at halfmove >= 100 in check, so it costs nothing elsewhere.
+bool fifty_move_mate(Board& b) {
+    if (b.halfmove < 100 || !b.in_check()) return false;
+    MoveList l;
+    generate(b, l, false);
+    for (int i = 0; i < l.size; ++i)
+        if (b.make(l.moves[i])) { b.unmake(l.moves[i]); return false; }
+    return true;
+}
+
 // cutnode: a zero-window node expected to fail high (the parent's reduced or null-move search); reduced harder.
 int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode, Move excluded = NO_MOVE) {
     const bool pv_node = beta - alpha > 1;
     S->pv_len[ply] = ply;
     if (ply > 0) {
-        if (S->board.is_draw(ply)) return 0;
+        if (S->board.is_draw(ply) && !fifty_move_mate(S->board)) return 0;
         if (ply >= MAX_PLY - 1) return eval_at(ply);
     }
     const bool in_check = S->board.in_check();
