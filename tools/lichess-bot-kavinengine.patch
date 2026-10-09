@@ -9,8 +9,9 @@
 #  6. lower_engine_priority: engines of non-tournament games run at nice 10, so an arena game that starts during another game
 #     gets the CPU (lichess-bot plays both; the 2026-10-09 arena draw vs caiporaBot shared the CPU with a rapid game).
 
+
 diff --git a/lib/lichess_bot.py b/lib/lichess_bot.py
-index 63ab211..dac9a8a 100644
+index 63ab211..34f0e42 100644
 --- a/lib/lichess_bot.py
 +++ b/lib/lichess_bot.py
 @@ -358,6 +358,8 @@ def lichess_bot_main(li: lichess.Lichess,
@@ -126,10 +127,10 @@ index 63ab211..dac9a8a 100644
      active_games[game_id] = opponent_name
      log_proc_count("Used", active_games)
      play_game_args["game_id"] = game_id
-@@ -657,6 +714,23 @@ def handle_challenge(event: EventType, li: lichess.Lichess, challenge_queue: MUL
+@@ -655,6 +712,23 @@ def handle_challenge(event: EventType, li: lichess.Lichess, challenge_queue: MUL
+         li.decline_challenge(chlng.id, reason=decline_reason)
  
- @backoff.on_exception(backoff.expo, BaseException, max_time=600, giveup=lichess.is_final,  # type: ignore[arg-type]
-                       on_backoff=lichess.backoff_handler)
+ 
 +def lower_engine_priority(engine: engine_wrapper.EngineWrapper, game_info: GameEventType, game_id: str) -> None:
 +    """
 +    Run the engine of a non-tournament game at nice 10.
@@ -147,9 +148,9 @@ index 63ab211..dac9a8a 100644
 +        logger.warning(f"Could not lower the engine priority for {game_id}: {nice_error!r}")
 +
 +
+ @backoff.on_exception(backoff.expo, BaseException, max_time=600, giveup=lichess.is_final,  # type: ignore[arg-type]
+                       on_backoff=lichess.backoff_handler)
  def play_game(li: lichess.Lichess,
-               game_id: str,
-               control_queue: CONTROL_QUEUE_TYPE,
 @@ -694,6 +768,7 @@ def play_game(li: lichess.Lichess,
          with engine_wrapper.create_engine(config, game) as engine:
              engine.get_opponent_info(game)

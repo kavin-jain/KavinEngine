@@ -84,4 +84,8 @@ lb.lower_engine_priority(FakeEngine(str(sleeper.pid)), {}, "C")
 assert os.getpriority(os.PRIO_PROCESS, sleeper.pid) == 10
 lb.lower_engine_priority(FakeEngine("?"), {}, "H")
 sleeper.kill()
+
+# 8. play_game keeps upstream's @backoff retry: patch 6 once put lower_engine_priority between the decorator and
+# play_game, so the decorator wrapped the wrong function and a transient error ended the game (found 2026-10-10)
+assert hasattr(lb.play_game, "__wrapped__") and not hasattr(lb.lower_engine_priority, "__wrapped__")
 print("all patch checks passed")
