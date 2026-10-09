@@ -8,8 +8,10 @@ here="$(dirname "$0")/kavinengine"
 exec 8> /tmp/kavinengine-oracle.lock 9> /tmp/kavinengine-lynxs.lock
 if flock -n 8 && ssh -n -o BatchMode=yes -o ConnectTimeout=5 oracle true; then  # -n: the check must not eat UCI input
   exec 9>&-
-  exec ssh -T -o BatchMode=yes -o ServerAliveInterval=5 -o ServerAliveCountMax=3 oracle \
+  # Not exec: ssh closes every inherited descriptor (fd 8 too), so this shell holds the VM slot until ssh exits.
+  ssh -T -o BatchMode=yes -o ServerAliveInterval=5 -o ServerAliveCountMax=3 oracle \
     'sed -u -e "/^quit/q" -e "s/^setoption name Threads value .*/setoption name Threads value 2/" | KavinEngine/kavinengine'
+  exit
 fi
 exec 8>&-
 flock -n 9  # the second game holds the lynxS slot; a third shares it
