@@ -44,7 +44,7 @@ inline void sub(int16_t* a, int f) { const int16_t* w = W0 + f * N; for (int i =
 // refreshed there and its pieces. A king-bucket change patches that entry by the pieces that differ (usually a few)
 // instead of summing all ~30 features. int16 wraps modulo 2^16, so the result has the same bits as a full refresh.
 struct FinnyEntry { int16_t acc[N]; Bitboard pieces[12]; bool valid; };
-FinnyEntry finny[2][NNUE_KING_BUCKETS][2];
+SEARCH_TLS FinnyEntry finny[2][NNUE_KING_BUCKETS][2];  // per search thread
 #endif
 }  // namespace
 

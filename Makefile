@@ -4,6 +4,8 @@ EVALFILE    ?= nets/leela-256.bin
 NNUE_HIDDEN ?= 256
 NNUE_KB     ?= 10
 NNUE_OB     ?= 8
+# Default of the UCI Threads option (cloud matches set it per side).
+THREADS     ?= 1
 # clang++ when installed: it vectorises the SCReLU dot product much better than g++ (+8.0 % nps on GitHub's
 # runners, identical bench; nps workflow, 2026-10-08). An explicit CXX=... still wins.
 ifeq ($(origin CXX),default)
@@ -16,7 +18,7 @@ else
   NATIVE := -march=native
 endif
 CXXFLAGS ?= -std=c++17 -O3 -Wall -Wextra -DNDEBUG $(NATIVE)
-CXXFLAGS += -DNNUE_HIDDEN=$(NNUE_HIDDEN) -DNNUE_KING_BUCKETS=$(NNUE_KB) -DNNUE_OUTPUT_BUCKETS=$(NNUE_OB)
+CXXFLAGS += -DDEFAULT_THREADS=$(THREADS) -DNNUE_HIDDEN=$(NNUE_HIDDEN) -DNNUE_KING_BUCKETS=$(NNUE_KB) -DNNUE_OUTPUT_BUCKETS=$(NNUE_OB)
 SRC      := $(wildcard src/*.cpp) pc/platform_pc.cpp
 HDR      := $(wildcard src/*.h)
 NET_CPP  := build/net_$(basename $(notdir $(EVALFILE))).cpp
