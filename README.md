@@ -90,6 +90,7 @@ the test stops as soon as the evidence is strong enough either way.
 | Threat-aware quiet-move history | +14.4 ± 6.8 |
 | Mop-up evaluation for won endgames | +12.5 ± 6.4 |
 | Node-share time management | +7.2 ± 4.3 |
+| Transposition table in the quiescence search | +7.2 ± 4.3 |
 | SEE pruning in the main search | +6.4 ± 4.2 |
 | **Multi-threaded search, 2 threads vs 1** (Lichess bot) | **+69.2 ± 8.7** |
 | **Pondering: thinking on the opponent's time** (Lichess bot) | **+72.7 ± 11.4** |
