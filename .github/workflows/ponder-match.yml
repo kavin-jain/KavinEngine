@@ -30,10 +30,10 @@ jobs:
         with: {path: cutechess-cli, key: cutechess-cli-v1.5.1-qt6}
       - name: Build cutechess-cli v1.5.1 (no Linux CLI release), fetch book (SHA-checked), build engine
         run: |
-          sudo apt-get -qq update > /dev/null && sudo apt-get -qq install -y qt6-base-dev cmake > /dev/null
+          sudo apt-get -qq update > /dev/null && sudo apt-get -qq install -y qt6-base-dev libqt6svg6-dev qt6-5compat-dev cmake > /dev/null
           if [ ! -x cutechess-cli ]; then
             git clone -q --depth 1 -b v1.5.1 https://github.com/cutechess/cutechess cc
-            cmake -S cc -B cc/build -DCMAKE_BUILD_TYPE=Release > /dev/null && cmake --build cc/build -j4 --target cli > /dev/null
+            cmake -S cc -B cc/build -DCMAKE_BUILD_TYPE=Release -DWITH_TESTS=OFF > /dev/null && cmake --build cc/build -j4 --target cli > /dev/null
             cp "$(find cc/build -name cutechess-cli -type f | head -1)" cutechess-cli
           fi
           CC=$PWD/cutechess-cli; echo "CC=$CC" >> "$GITHUB_ENV"; $CC --version | head -1
