@@ -167,6 +167,18 @@ int qsearch(int alpha, int beta, int ply) {
     if (should_stop()) return 0;
     if (ply > S->seldepth) S->seldepth = ply;
     if (ply >= MAX_PLY - 1) return eval_at(ply);
+    // TT: any entry is deep enough here (depth 0); its move also orders the captures.
+    const bool pv_node = beta - alpha > 1;
+    TTEntry tte;
+    Move tt_move = NO_MOVE;
+    if (g_tt.probe(S->board.key, tte)) {
+        tt_move = tte.move;
+        const int s = score_from_tt(tte.score, ply);
+        if (!pv_node && (tte.bound == BOUND_EXACT || (tte.bound == BOUND_LOWER && s >= beta) || (tte.bound == BOUND_UPPER && s <= alpha)))
+            return s;
+    }
+    const int alpha0 = alpha;
+    Move best_move = NO_MOVE;
     const bool in_check = S->board.in_check();
     int best = -INF;
     if (!in_check) {  // stand pat
@@ -178,7 +190,7 @@ int qsearch(int alpha, int beta, int ply) {
     generate(S->board, list, !in_check);  // in check: all evasions
     int16_t scores[MAX_MOVES];
     bool see_pending[MAX_MOVES];
-    score_moves(list, scores, see_pending, NO_MOVE, ply, in_check ? attacked_by(S->board, ~S->board.stm) : 0);  // quiets only in check
+    score_moves(list, scores, see_pending, tt_move, ply, in_check ? attacked_by(S->board, ~S->board.stm) : 0);  // quiets only in check
     int legal = 0;
     for (int i = 0; i < list.size; ++i) {
         Move m = pick(list, scores, see_pending, i);
@@ -191,10 +203,13 @@ int qsearch(int alpha, int beta, int ply) {
         if (S->stopped) return 0;
         if (score > best) {
             best = score;
+            best_move = m;
             if (score > alpha) { alpha = score; if (score >= beta) break; }
         }
     }
     if (in_check && legal == 0) return -MATE + ply;
+    g_tt.store(S->board.key, best_move, score_to_tt(best, ply), 0,
+               best >= beta ? BOUND_LOWER : best > alpha0 ? BOUND_EXACT : BOUND_UPPER);
     return best;
 }
 

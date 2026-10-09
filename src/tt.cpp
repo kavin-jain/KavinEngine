@@ -32,6 +32,8 @@ void TT::store(Key key, Move move, int score, int depth, int bound) {
     const uint64_t old = s.data;
     const bool same = (s.check ^ old) == key && uint8_t(old >> 40) != BOUND_NONE;
     if (same && depth < int(uint8_t(old >> 32)) && bound != BOUND_EXACT) return;
+    // A quiescence entry (depth 0) never evicts another position's search entry from the slot.
+    if (!same && depth == 0 && uint8_t(old >> 40) != BOUND_NONE && uint8_t(old >> 32) > 0) return;
     if (move == NO_MOVE && same) move = Move(old);
     const uint64_t d = uint64_t(move) | uint64_t(uint16_t(int16_t(score))) << 16 | uint64_t(uint8_t(depth < 0 ? 0 : depth)) << 32
                      | uint64_t(uint8_t(bound)) << 40;
