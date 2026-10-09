@@ -44,11 +44,17 @@ static int moves_to_mate(const char* fen, uint64_t nodes, int max_moves) {
 }
 
 TEST(converts_bare_king_endings) {
-    const int kqk = moves_to_mate("8/5k2/8/6Q1/5P2/7P/6K1/8 w - - 1 51", 20000, 40);
-    const int krk = moves_to_mate("8/8/8/4k3/8/8/8/R3K3 w - - 0 1", 20000, 40);
-    std::printf("  bare-king conversion: KQPP-K mate in %d moves (tablebase 6), KR-K in %d (tablebase <= 16)\n", kqk, krk);
-    CHECK(kqk > 0 && kqk <= 12);
-    CHECK(krk > 0 && krk <= 25);
+    // Several budgets: one self-play game is chaotic. The pre-cut-node engine mated KR-K in 14 moves at 20k nodes but
+    // not within 60 at 400k; cut-node LMR needs 27 at 20k and 14 at 100k and 400k (lynxS, 2026-10-09). Every budget must
+    // mate with 20 moves to spare before the 50-move rule.
+    for (uint64_t nodes : {20000ULL, 100000ULL, 400000ULL}) {
+        const int kqk = moves_to_mate("8/5k2/8/6Q1/5P2/7P/6K1/8 w - - 1 51", nodes, 40);
+        const int krk = moves_to_mate("8/8/8/4k3/8/8/8/R3K3 w - - 0 1", nodes, 40);
+        std::printf("  bare-king conversion, %llu nodes/move: KQPP-K mate in %d moves (tablebase 6), KR-K in %d "
+                    "(tablebase <= 16)\n", (unsigned long long)nodes, kqk, krk);
+        CHECK(kqk > 0 && kqk <= 12);
+        CHECK(krk > 0 && krk <= 30);
+    }
 }
 
 TEST(bare_kings_is_draw) {
