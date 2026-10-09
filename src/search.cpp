@@ -37,7 +37,7 @@ struct Searcher {
     bool stopped;
     int seldepth;
     Move killers[MAX_PLY][2];
-    int16_t history[2][64][64];
+    int16_t history[2][2][2][64][64];  // [side][from attacked][to attacked][from][to]  ponytail: +48 KB per searcher; recheck the ESP32 RAM budget
     Move pv[MAX_PLY][MAX_PLY];
     uint64_t root_nodes[64][64];  // nodes spent below each root move this search (time management)
     int pv_len[MAX_PLY];
@@ -106,9 +106,26 @@ bool should_stop() {
     return S->stopped;
 }
 
+// Squares the side `by` attacks. Quiet-move history is kept separately for moves from/to attacked squares: moving a
+// threatened piece away, or onto a defended square, is a different idea from the same move without the threat.
+Bitboard attacked_by(const Board& b, Color by) {
+    const Bitboard* p = b.pieces + int(by) * 6;
+    Bitboard a = KingAttacks[lsb(p[KING])], x;
+    for (x = p[PAWN]; x;) a |= PawnAttacks[by][pop_lsb(x)];
+    for (x = p[KNIGHT]; x;) a |= KnightAttacks[pop_lsb(x)];
+    for (x = p[BISHOP] | p[QUEEN]; x;) a |= bishop_attacks(pop_lsb(x), b.occ);
+    for (x = p[ROOK] | p[QUEEN]; x;) a |= rook_attacks(pop_lsb(x), b.occ);
+    return a;
+}
+
+int16_t& history_of(Move m, Bitboard threats) {
+    const int f = from_sq(m), t = to_sq(m);
+    return S->history[S->board.stm][(threats >> f) & 1][(threats >> t) & 1][f][t];
+}
+
 // Captures and promotions are scored as if SEE >= 0 and marked pending: pick() runs SEE only when such a move would
 // be chosen, and demotes it to the losing-capture band if it fails. Same order as scoring SEE up front, fewer SEE calls.
-void score_moves(const MoveList& list, int16_t* scores, bool* see_pending, Move tt_move, int ply) {
+void score_moves(const MoveList& list, int16_t* scores, bool* see_pending, Move tt_move, int ply, Bitboard threats) {
     for (int i = 0; i < list.size; ++i) {
         const Move m = list.moves[i];
         see_pending[i] = false;
@@ -121,7 +138,7 @@ void score_moves(const MoveList& list, int16_t* scores, bool* see_pending, Move 
             see_pending[i] = true;
         } else if (m == S->killers[ply][0]) scores[i] = 19000;
         else if (m == S->killers[ply][1]) scores[i] = 18999;
-        else scores[i] = S->history[S->board.stm][from_sq(m)][to_sq(m)];  // bounded to +-16384
+        else scores[i] = history_of(m, threats);  // bounded to +-16384
     }
 }
 
@@ -140,8 +157,8 @@ Move pick(MoveList& list, int16_t* scores, bool* see_pending, int i) {  // selec
     }
 }
 
-void update_history(Move m, int bonus) {  // "gravity": keeps values within +-16384
-    int16_t& h = S->history[S->board.stm][from_sq(m)][to_sq(m)];
+void update_history(Move m, int bonus, Bitboard threats) {  // "gravity": keeps values within +-16384
+    int16_t& h = history_of(m, threats);
     h = int16_t(h + bonus - h * std::abs(bonus) / 16384);
 }
 
@@ -161,7 +178,7 @@ int qsearch(int alpha, int beta, int ply) {
     generate(S->board, list, !in_check);  // in check: all evasions
     int16_t scores[MAX_MOVES];
     bool see_pending[MAX_MOVES];
-    score_moves(list, scores, see_pending, NO_MOVE, ply);
+    score_moves(list, scores, see_pending, NO_MOVE, ply, in_check ? attacked_by(S->board, ~S->board.stm) : 0);  // quiets only in check
     int legal = 0;
     for (int i = 0; i < list.size; ++i) {
         Move m = pick(list, scores, see_pending, i);
@@ -245,7 +262,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, Move excluded
     generate(S->board, list, false);
     int16_t scores[MAX_MOVES];
     bool see_pending[MAX_MOVES];
-    score_moves(list, scores, see_pending, tt_move, ply);
+    const Bitboard threats = attacked_by(S->board, ~S->board.stm);
+    score_moves(list, scores, see_pending, tt_move, ply, threats);
     Move quiets[64];
     int n_quiets = 0, legal = 0, best = -INF;
     const int alpha0 = alpha;
@@ -295,8 +313,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, Move excluded
                     if (quiet) {
                         if (S->killers[ply][0] != m) { S->killers[ply][1] = S->killers[ply][0]; S->killers[ply][0] = m; }
                         const int bonus = std::min(depth * depth, 1200);
-                        update_history(m, bonus);
-                        for (int q = 0; q < n_quiets; ++q) update_history(quiets[q], -bonus);
+                        update_history(m, bonus, threats);
+                        for (int q = 0; q < n_quiets; ++q) update_history(quiets[q], -bonus, threats);
                     }
                     break;
                 }
