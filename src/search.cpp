@@ -219,7 +219,8 @@ int qsearch(int alpha, int beta, int ply) {
     return best;
 }
 
-int negamax(int alpha, int beta, int depth, int ply, bool null_ok, Move excluded = NO_MOVE) {
+// cutnode: a zero-window node expected to fail high (the parent's reduced or null-move search); reduced harder.
+int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode, Move excluded = NO_MOVE) {
     const bool pv_node = beta - alpha > 1;
     S->pv_len[ply] = ply;
     if (ply > 0) {
@@ -260,7 +261,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, Move excluded
         && static_eval >= beta) {
         S->board.make_null();
         S->acc[ply + 1] = S->acc[ply];
-        int s = -negamax(-beta, -beta + 1, depth - 1 - (3 + depth / 6), ply + 1, false);
+        int s = -negamax(-beta, -beta + 1, depth - 1 - (3 + depth / 6), ply + 1, false, !cutnode);
         S->board.unmake_null();
         if (S->stopped) return 0;
         if (s >= beta) return s >= MATE_BOUND ? beta : s;
@@ -273,7 +274,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, Move excluded
     if (ply > 0 && excluded == NO_MOVE && depth >= 8 && tt_hit && tt_move != NO_MOVE && tte.depth >= depth - 3
         && (tte.bound & BOUND_LOWER) && std::abs(score_from_tt(tte.score, ply)) < MATE_BOUND) {
         const int singular_beta = score_from_tt(tte.score, ply) - 2 * depth;
-        const int s = negamax(singular_beta - 1, singular_beta, (depth - 1) / 2, ply, false, tt_move);
+        const int s = negamax(singular_beta - 1, singular_beta, (depth - 1) / 2, ply, false, cutnode, tt_move);
         if (S->stopped) return 0;
         if (s < singular_beta) extension = 1;
         else if (singular_beta >= beta) return singular_beta;
@@ -310,14 +311,14 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, Move excluded
         const uint64_t nodes_before = S->nodes;
         int score;
         if (legal == 1) {
-            score = -negamax(-beta, -alpha, new_depth, ply + 1, true);
+            score = -negamax(-beta, -alpha, new_depth, ply + 1, true, !pv_node && !cutnode);
         } else {
             int r = 0;  // late move reductions for quiet, non-checking moves
             if (depth >= 3 && legal > 3 && quiet && !in_check && !S->board.in_check())
-                r = std::max(0, std::min<int>(LMR[std::min(depth, 63)][std::min(legal, 63)], new_depth - 1));
-            score = -negamax(-alpha - 1, -alpha, new_depth - r, ply + 1, true);
-            if (score > alpha && r > 0) score = -negamax(-alpha - 1, -alpha, new_depth, ply + 1, true);
-            if (score > alpha && score < beta) score = -negamax(-beta, -alpha, new_depth, ply + 1, true);
+                r = std::max(0, std::min<int>(LMR[std::min(depth, 63)][std::min(legal, 63)] + cutnode, new_depth - 1));
+            score = -negamax(-alpha - 1, -alpha, new_depth - r, ply + 1, true, true);
+            if (score > alpha && r > 0) score = -negamax(-alpha - 1, -alpha, new_depth, ply + 1, true, !cutnode);
+            if (score > alpha && score < beta) score = -negamax(-beta, -alpha, new_depth, ply + 1, true, false);
         }
         S->board.unmake(m);
         if (ply == 0) S->root_nodes[from_sq(m)][to_sq(m)] += S->nodes - nodes_before;
@@ -429,7 +430,7 @@ static SearchResult iterate(const Board& root, const Limits& limits, bool verbos
         if (d >= 4) { alpha = std::max(prev_score - delta, -INF); beta = std::min(prev_score + delta, INF); }
         int score;
         for (;;) {  // re-search with a wider window until the score lands inside it
-            score = negamax(alpha, beta, d, 0, true);
+            score = negamax(alpha, beta, d, 0, true, false);
             if (S->stopped) break;
             if (score <= alpha) { beta = (alpha + beta) / 2; alpha = std::max(score - delta, -INF); }
             else if (score >= beta) beta = std::min(score + delta, INF);
