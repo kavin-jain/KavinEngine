@@ -269,7 +269,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
 
     // Singular extension: if every move but the TT move fails low against a margin below the TT score, the TT move
     // is the only good one here, so search it one ply deeper. If another move also beats beta, two moves refute this
-    // node and it can be cut (multi-cut).
+    // node and it can be cut (multi-cut). If another move is nearly as good and the TT score already beats beta, the TT
+    // move is searched one ply shallower (negative extension).
     int extension = 0;
     if (ply > 0 && excluded == NO_MOVE && depth >= 8 && tt_hit && tt_move != NO_MOVE && tte.depth >= depth - 3
         && (tte.bound & BOUND_LOWER) && std::abs(score_from_tt(tte.score, ply)) < MATE_BOUND) {
@@ -278,6 +279,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         if (S->stopped) return 0;
         if (s < singular_beta) extension = 1;
         else if (singular_beta >= beta) return singular_beta;
+        else if (score_from_tt(tte.score, ply) >= beta) extension = -1;
     }
 
     MoveList list;
