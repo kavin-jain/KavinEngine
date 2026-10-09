@@ -1,0 +1,10 @@
+gauntlet now-2026-10-09 (f8d4058, tc 60+0.6, book 8moves_v3, 16/16 jobs)
+  vs alexandria-6.0.0 (3630): +3 =98 -91 score 27.1% perf 3458 time losses 0
+  vs altair-7.0.0 (3579): +17 =116 -59 score 39.1% perf 3502 time losses 0
+  vs berserk-8.5 (3575): +7 =121 -64 score 35.2% perf 3469 time losses 0
+  vs ethereal-12.75 (3424): +64 =100 -28 score 59.4% perf 3490 time losses 0
+  vs halogen-11 (3425): +56 =123 -13 score 61.2% perf 3504 time losses 0
+  vs koivisto-7.0 (3529): +26 =124 -42 score 45.8% perf 3500 time losses 0
+  vs stash-v35.0 (3345): +106 =71 -15 score 73.7% perf 3524 time losses 0
+  vs stash-v37.0 (3417): +75 =92 -25 score 63.0% perf 3510 time losses 0
+RESULT now-2026-10-09: CCRL Blitz-anchored rating 3495 ± 11 over 1536 games
