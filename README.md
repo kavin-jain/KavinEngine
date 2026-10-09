@@ -92,6 +92,7 @@ the test stops as soon as the evidence is strong enough either way.
 | Node-share time management | +7.2 ± 4.3 |
 | SEE pruning in the main search | +6.4 ± 4.2 |
 | **Multi-threaded search, 2 threads vs 1** (Lichess bot) | **+69.2 ± 8.7** |
+| **Pondering: thinking on the opponent's time** (Lichess bot) | **+72.7 ± 11.4** |
 
 Plus bit-identical speed-ups (same moves, faster): clang instead of gcc **+8.0 %**, refresh cache **+4.2 %**, lazy SEE
 **+1.6 %** nodes per second. On this engine 1 % speed ≈ 1 Elo.
