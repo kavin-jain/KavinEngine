@@ -1,9 +1,9 @@
-"""Checks tools/lichess-bot-kavinengine.patch: reconcile_games and start_game_thread's duplicate guard, with fakes
-(no network, no engine). Run from a patched lichess-bot checkout (commit df7e730):
+"""Checks tools/lichess-bot-kavinengine.patch: reconcile_games, start_game_thread's duplicate guard and
+lower_engine_priority, with fakes (no network, no engine; Linux, for setpriority). Run from a patched lichess-bot checkout (commit df7e730):
   git apply ../KavinEngine/tools/lichess-bot-kavinengine.patch
   PYTHONPATH=. venv/bin/python ../KavinEngine/tools/test_lichess_bot_patch.py
 Also run lichess-bot's own suite after patching: venv/bin/python -m pytest test_bot (53 passed, 2026-10-09)."""
-import sys
+import os, subprocess, sys
 sys.argv = ["x"]
 from lib import lichess_bot as lb
 
@@ -66,4 +66,22 @@ lb.running_games.clear(); started.clear(); active = {"ACC": "e"}
 lb.start_game_thread(active, "ACC", "e", dict(args), FakePool())
 lb.start_game_thread(active, "ACC", "e", dict(args), FakePool())
 assert len(started) == 1, started
-print("all reconcile checks passed")
+
+# 7. engines of non-tournament games run at nice 10, tournament engines stay at 0; get_pid() returns a str (the
+# 2026-10-09 int/str mix-up made every casual game fail for an hour), "?" for homemade engines
+class FakeEngine:
+    def __init__(self, pid):
+        self.pid = pid
+
+    def get_pid(self):
+        return self.pid
+
+
+sleeper = subprocess.Popen(["sleep", "30"], start_new_session=True)
+lb.lower_engine_priority(FakeEngine(str(sleeper.pid)), {"tournamentId": "EQW8EnjT"}, "T")
+assert os.getpriority(os.PRIO_PROCESS, sleeper.pid) == 0
+lb.lower_engine_priority(FakeEngine(str(sleeper.pid)), {}, "C")
+assert os.getpriority(os.PRIO_PROCESS, sleeper.pid) == 10
+lb.lower_engine_priority(FakeEngine("?"), {}, "H")
+sleeper.kill()
+print("all patch checks passed")
