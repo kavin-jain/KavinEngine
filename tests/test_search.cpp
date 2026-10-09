@@ -1,9 +1,7 @@
 #include "test.h"
-#include <cstdlib>
-#if SEARCH_THREADS_MAX > 1
 #include <chrono>
+#include <cstdlib>
 #include <thread>
-#endif
 #include "../src/search.h"
 
 static Board B;
