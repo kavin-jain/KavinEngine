@@ -50,6 +50,7 @@ struct Searcher {
     Accumulator acc[MAX_PLY + 1];  // acc[ply] matches the board at that ply
     int eval_stack[MAX_PLY + 1];   // static eval per ply (-INF when in check)
     int16_t corr[2][CORRHIST_SIZE];  // pawn-structure correction history, scaled by 256
+    int nmp_min_ply;  // no null move below this ply: set during a null-move verification search
 };
 // Static storage: these arrays must not live on the small ESP32 task stack. One searcher per thread; S is this
 // thread's. The TT is shared (Lazy SMP); node counts of helpers are read racily, for reporting only.
@@ -258,13 +259,24 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
 
     // Null-move pruning: if passing still fails high, this node is very likely a cut-node.
     if (!pv_node && !in_check && null_ok && excluded == NO_MOVE && depth >= 3 && S->board.has_non_pawn_material(S->board.stm)
-        && static_eval >= beta) {
+        && static_eval >= beta && ply >= S->nmp_min_ply) {
+        const int null_depth = depth - 1 - (3 + depth / 6);
         S->board.make_null();
         S->acc[ply + 1] = S->acc[ply];
-        int s = -negamax(-beta, -beta + 1, depth - 1 - (3 + depth / 6), ply + 1, false, !cutnode);
+        int s = -negamax(-beta, -beta + 1, null_depth, ply + 1, false, !cutnode);
         S->board.unmake_null();
         if (S->stopped) return 0;
-        if (s >= beta) return s >= MATE_BOUND ? beta : s;
+        if (s >= beta) {
+            if (s >= MATE_BOUND) s = beta;
+            if (depth < 12 || S->nmp_min_ply) return s;
+            // Verification at high depth, where a wrong cutoff (zugzwang) costs most: the same reduced search without
+            // null moves for the next plies must fail high too.
+            S->nmp_min_ply = ply + 3 * null_depth / 4;
+            const int v = negamax(beta - 1, beta, null_depth, ply, false, false);
+            S->nmp_min_ply = 0;
+            if (S->stopped) return 0;
+            if (v >= beta) return s;
+        }
     }
 
     // Singular extension: if every move but the TT move fails low against a margin below the TT score, the TT move
