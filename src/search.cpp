@@ -15,6 +15,10 @@
 #include "platform.h"
 
 TT g_tt;
+#ifndef HISTORY_THREATS
+#define HISTORY_THREATS 1  // threat-aware quiet history (+14 Elo on PC); the ESP32 build turns it off to save 48 KB
+#endif
+constexpr int HT = HISTORY_THREATS ? 2 : 1;
 #ifndef CORRHIST_SIZE
 #define CORRHIST_SIZE 16384  // entries per side; ESP32 builds use a smaller table
 #endif
@@ -39,7 +43,7 @@ struct Searcher {
     bool stopped;
     int seldepth;
     Move killers[MAX_PLY][2];
-    int16_t history[2][2][2][64][64];  // [side][from attacked][to attacked][from][to]  ponytail: +48 KB per searcher; recheck the ESP32 RAM budget
+    int16_t history[2][HT][HT][64][64];  // [side][from attacked][to attacked][from][to]; HT = 1 on the ESP32 (RAM)
     Move pv[MAX_PLY][MAX_PLY];
     uint64_t root_nodes[64][64];  // nodes spent below each root move this search (time management)
     int pv_len[MAX_PLY];
@@ -122,7 +126,7 @@ Bitboard attacked_by(const Board& b, Color by) {
 
 int16_t& history_of(Move m, Bitboard threats) {
     const int f = from_sq(m), t = to_sq(m);
-    return S->history[S->board.stm][(threats >> f) & 1][(threats >> t) & 1][f][t];
+    return S->history[S->board.stm][HISTORY_THREATS ? (threats >> f) & 1 : 0][HISTORY_THREATS ? (threats >> t) & 1 : 0][f][t];
 }
 
 // Captures and promotions are scored as if SEE >= 0 and marked pending: pick() runs SEE only when such a move would
