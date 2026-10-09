@@ -5,6 +5,8 @@ Plain-text output, short enough for one Telegram message. Runs with lichess-bot'
   bot_ops.py report [HOURS]    the last HOURS (24): games, W/D/L per speed, time losses, rating change, losses
   bot_ops.py last              the last finished game
   bot_ops.py analyze [ID]      Stockfish 19 analysis of game ID (default: last finished), sent to Telegram when done
+  bot_ops.py watchdog          (systemd timer, every 5 min) restart lichess-bot and tell Telegram if the bot is offline
+                               or has been idle > 20 min without a reason (at most one restart per 30 min)
 """
 import json, pathlib, re, subprocess, sys, time, urllib.request
 
@@ -148,10 +150,55 @@ def cmd_analyze(gid=None, run=False):
         log.write(f"{time.strftime('%F %T')} {gid} hermes-send exit {sent}\n" + "\n".join(body) + "\n\n")
 
 
+IDLE_LIMIT, RESTART_GAP, BOT_GAMES_PER_DAY = 20 * 60, 30 * 60, 100  # Lichess allows 100 bot-vs-bot games a day
+
+
+def cmd_watchdog():
+    """Independent of lichess-bot's internals: if it stops playing for any reason, restart it and say so."""
+    path = STATE.with_name("watchdog.json")  # own file: wifi_drops() rewrites state.json whole
+    wd = json.loads(path.read_text()) if path.exists() else {}
+    now = time.time()
+    status = api(f"/api/users/status?ids={BOT}")[0]
+    if status.get("playing"):
+        wd["last_active"] = now
+    else:
+        last = api(f"/api/games/user/{BOT}?max=1&moves=false", ndjson=True)
+        if last:
+            wd["last_active"] = max(wd.get("last_active", 0), last[0].get("lastMoveAt", 0) / 1000)
+    idle = now - wd.get("last_active", now)
+    reason = None
+    if not status.get("online"):
+        reason = "offline on Lichess"
+    elif idle > IDLE_LIMIT:
+        day = games_since(24)
+        bot_games = sum(1 for g in day if side(g)[1].get("user", {}).get("title") == "BOT")
+        if bot_games >= BOT_GAMES_PER_DAY:
+            if not wd.get("cap_reported"):
+                wd["cap_reported"] = True
+                subprocess.run([str(HERMES), "send", "-t", "telegram", "-q"], text=True,
+                               input=f"♟ {BOT} reached Lichess's {BOT_GAMES_PER_DAY} bot games in 24 h; it waits for humans "
+                                     f"or for the window to roll over. No restart needed.")
+        else:
+            reason = f"idle for {idle / 60:.0f} min ({bot_games} bot games in 24 h)"
+    if status.get("playing") or idle < IDLE_LIMIT:
+        wd["cap_reported"] = False
+    if reason and now - wd.get("last_restart", 0) > RESTART_GAP:
+        wd["last_restart"] = now
+        ok = subprocess.run(["systemctl", "--user", "restart", "lichess-bot.service"]).returncode == 0
+        msg = f"⚠️ Watchdog: {BOT} was {reason}; lichess-bot {'restarted' if ok else 'restart FAILED'}."
+        subprocess.run([str(HERMES), "send", "-t", "telegram", "-q"], input=msg, text=True)
+        print(msg)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(wd))
+    print(f"{time.strftime('%F %T')} online={status.get('online')} playing={bool(status.get('playing'))} "
+          f"idle={idle / 60:.1f} min{' -> ' + reason if reason else ''}")
+
+
 if __name__ == "__main__":
     cmd, args = (sys.argv[1] if len(sys.argv) > 1 else "status"), sys.argv[2:]
     if cmd == "status": cmd_status()
     elif cmd == "report": cmd_report(int(args[0]) if args else 24)
     elif cmd == "last": cmd_last()
     elif cmd == "analyze": cmd_analyze(next((a for a in args if a != "--run"), None), "--run" in args)
+    elif cmd == "watchdog": cmd_watchdog()
     else: sys.exit(__doc__)

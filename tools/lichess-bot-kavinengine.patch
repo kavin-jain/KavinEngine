@@ -1,0 +1,179 @@
+# KavinEngine patches for lichess-bot (upstream commit df7e730, version 2026.8.9.2). Apply with `git apply` in the
+# lichess-bot checkout; check with tools/test_lichess_bot_patch.py and lichess-bot's own `pytest test_bot`.
+#  1. play_game: reopen a dropped game stream while lichess still lists the game (lost on time with 10 min left).
+#  2. running_games: a repeated gameStart for a game whose thread runs starts no second thread.
+#  3. accept_challenges: withdraw our pending challenge before accepting one (two games at once).
+#  4. matchmaking: skip bots that are in a game (they can only decline; ~40 % of picks).
+#  5. reconcile_games: once a minute, make the local game slots agree with lichess.org (resume games without a
+#     thread, free slots of games that never started). This is the general fix for the bugs 1-3 are instances of.
+
+diff --git a/lib/lichess_bot.py b/lib/lichess_bot.py
+index 63ab211..ac5c581 100644
+--- a/lib/lichess_bot.py
++++ b/lib/lichess_bot.py
+@@ -358,6 +358,8 @@ def lichess_bot_main(li: lichess.Lichess,
+     low_time_games: list[GameType] = []
+ 
+     last_check_online_time = Timer(hours(1))
++    reconcile_timer = Timer(seconds(60))
++    reconcile_suspects: set[str] = set()
+     matchmaker = matchmaking.Matchmaking(li, config, user_profile)
+     matchmaker.show_earliest_challenge_time()
+ 
+@@ -387,6 +389,7 @@ def lichess_bot_main(li: lichess.Lichess,
+ 
+             if event["type"] == "local_game_done":
+                 active_games.pop(event["game"]["id"], None)
++                running_games.discard(event["game"]["id"])
+                 matchmaker.game_done()
+                 log_proc_count("Freed", active_games)
+                 one_game_completed = True
+@@ -422,7 +425,10 @@ def lichess_bot_main(li: lichess.Lichess,
+                                              play_game_args,
+                                              active_games,
+                                              max_games)
+-            accept_challenges(li, challenge_queue, active_games, max_games, max_bot_games)
++            if reconcile_timer.is_expired():
++                reconcile_timer.reset()
++                reconcile_games(li, active_games, reconcile_suspects, pool, play_game_args, startup_correspondence_games)
++            accept_challenges(li, challenge_queue, active_games, max_games, max_bot_games, matchmaker)
+             matchmaker.challenge(active_games, challenge_queue, max_bot_games)
+             check_online_status(li, user_profile, last_check_online_time)
+ 
+@@ -431,6 +437,37 @@ def lichess_bot_main(li: lichess.Lichess,
+         close_pool(pool, active_games, config)
+ 
+ 
++def reconcile_games(li: lichess.Lichess, active_games: dict[str, str], suspects: set[str], pool: POOL_TYPE,
++                    play_game_args: PlayGameArgsType, startup_correspondence_games: list[str]) -> None:
++    """
++    KavinEngine patch (2026-10-09): make the local game slots agree with lichess.org, which is the truth.
++
++    active_games can drift from the real games (a game thread that quit while the game went on, a repeated gameStart, an
++    accepted challenge whose game never started), and every drift either loses a game on time, plays two games at once
++    or leaves the bot idle with a slot that never frees. Runs once a minute:
++    - a game lichess lists as ongoing with no running thread gets a thread (play_game resumes from the full state);
++    - a slot for a game lichess does not list, with no running thread, is freed once it has looked stale on two runs
++      in a row (a just-accepted challenge has a minute to start).
++    """
++    ongoing = li.get_ongoing_games()
++    if ongoing is None:  # API error: keep everything until the next run
++        return
++    live = {game["gameId"]: game for game in ongoing
++            if game["speed"] != "correspondence" and game["gameId"] not in startup_correspondence_games}
++    for game_id, game in live.items():
++        if game_id not in running_games:
++            logger.warning(f"Reconcile: {game_id} is being played on lichess without a game thread; resuming it")
++            start_game_thread(active_games, game_id, game["opponent"]["username"], play_game_args, pool)
++    stale = {game_id for game_id in active_games if game_id not in live and game_id not in running_games}
++    freed = stale & suspects
++    for game_id in freed:
++        logger.warning(f"Reconcile: freeing the slot of {game_id}, which lichess does not list as ongoing")
++        active_games.pop(game_id, None)
++        log_proc_count("Freed", active_games)
++    suspects.clear()
++    suspects.update(stale - freed)  # first-time stale slots get one more minute
++
++
+ def close_pool(pool: POOL_TYPE, active_games: dict[str, str], config: Configuration) -> None:
+     """Shut down pool after possibly waiting on games to finish depending on the configuration."""
+     if config.quit_after_all_games_finish:
+@@ -502,7 +539,7 @@ def start_low_time_games(low_time_games: list[GameType], active_games: dict[str,
+ 
+ 
+ def accept_challenges(li: lichess.Lichess, challenge_queue: MULTIPROCESSING_LIST_TYPE, active_games: dict[str, str],
+-                      max_games: int, max_bot_games: int) -> None:
++                      max_games: int, max_bot_games: int, matchmaker: matchmaking.Matchmaking | None = None) -> None:
+     """Accept a challenge."""
+     while len(active_games) < max_games and challenge_queue:
+         chlng = challenge_queue[0]
+@@ -516,6 +553,16 @@ def accept_challenges(li: lichess.Lichess, challenge_queue: MULTIPROCESSING_LIST
+             break
+ 
+         challenge_queue.pop(0)
++        if matchmaker is not None and matchmaker.challenge_id:
++            # KavinEngine patch (2026-10-09): our own pending challenge is not counted in active_games, so it could be
++            # accepted as well and the bot played two games at once with concurrency 1. Withdraw it first.
++            pending = matchmaker.challenge_id
++            try:
++                li.cancel(pending)
++                logger.info(f"Cancelled our pending challenge {pending} to accept {chlng}")
++            except Exception as cancel_error:
++                logger.warning(f"Could not cancel {pending}: {cancel_error!r}")
++            matchmaker.discard_challenge(pending)
+         try:
+             logger.info(f"Accept {chlng}")
+             li.accept_challenge(chlng.id)
+@@ -562,9 +609,19 @@ def game_is_active(li: lichess.Lichess, game_id: str) -> bool:
+     return game_id in (ongoing_game["gameId"] for ongoing_game in active_games)
+ 
+ 
++# KavinEngine patch (2026-10-09): lichess re-sends gameStart after the event stream reconnects; a second thread for the
++# same game played it twice and freed its slot early. Track games whose thread is running (not active_games, which also
++# holds accepted challenges that have not started yet).
++running_games: set[str] = set()
++
++
+ def start_game_thread(active_games: dict[str, str], game_id: str, opponent_name: str,
+                       play_game_args: PlayGameArgsType, pool: POOL_TYPE) -> None:
+     """Start a game thread."""
++    if game_id in running_games:
++        logger.info(f"Already playing {game_id}; ignoring the repeated gameStart")
++        return
++    running_games.add(game_id)
+     active_games[game_id] = opponent_name
+     log_proc_count("Used", active_games)
+     play_game_args["game_id"] = game_id
+@@ -774,8 +831,25 @@ def play_game(li: lichess.Lichess,
+                         stay_in_game = False
+                 except (HTTPError, ReadTimeout, RemoteDisconnected, ChunkedEncodingError, RequestsConnectionError,
+                         StopIteration) as e:
+-                    stopped = isinstance(e, StopIteration)
+-                    stay_in_game = not stopped and (move_attempted or game_is_active(li, game.id))
++                    # KavinEngine patch (2026-10-09): a dropped game stream used to end play_game while the game
++                    # was still running on lichess, so the bot lost on time and matchmaking started another game.
++                    # Reopen the stream while lichess still lists the game; its first line is the full game state.
++                    stay_in_game = False
++                    for attempt in range(10):
++                        try:
++                            if is_game_over(game) or not game_is_active(li, game.id):
++                                break
++                            response.close()
++                            response = li.get_game_stream(game.id)
++                            lines = response.iter_lines()
++                            full = json.loads(next(lines).decode("utf-8"))
++                            game_stream = itertools.chain([json.dumps(full["state"]).encode("utf-8")], lines)
++                            logger.info(f"Reconnected to {game.url()} after {type(e).__name__}")
++                            stay_in_game = True
++                            break
++                        except Exception as reconnect_error:
++                            logger.warning(f"Reconnect {attempt + 1}/10 to {game.url()} failed: {reconnect_error!r}")
++                            time.sleep(min(2 ** attempt, 10))
+ 
+             pgn_record = try_get_pgn_game_record(li, config, game, board, engine)
+         final_queue_entries(control_queue, correspondence_queue, game, is_correspondence, pgn_record, pgn_queue)
+diff --git a/lib/matchmaking.py b/lib/matchmaking.py
+index 1e20f76..c55c4d5 100644
+--- a/lib/matchmaking.py
++++ b/lib/matchmaking.py
+@@ -218,6 +218,20 @@ class Matchmaking:
+         online_bots = self.li.get_online_bots()
+         logger.info(f"Found {len(online_bots)} online bots")
+         online_bots = list(filter(is_suitable_opponent, online_bots))
++        # KavinEngine patch (2026-10-09): a bot that is in a game can only decline or ignore us, and each try costs a
++        # minute plus one of the 200 daily challenges. Keep the idle ones (one status call per 100 bots).
++        try:
++            busy = set()
++            names = [bot["username"] for bot in online_bots]
++            for i in range(0, len(names), 100):
++                for status in self.li.api_get_list("status", params={"ids": ",".join(names[i:i + 100])}):
++                    if status.get("playing"):
++                        busy.add(status.get("name", "").lower())
++            idle = [bot for bot in online_bots if bot["username"].lower() not in busy]
++            logger.info(f"{len(online_bots) - len(idle)} of {len(online_bots)} suitable bots are playing right now")
++            online_bots = idle or online_bots
++        except Exception as status_error:
++            logger.warning(f"Could not read bot statuses: {status_error!r}")
+         logger.info(f"Choosing from {len(online_bots)} suitable opponents")
+ 
+         def ready_for_challenge(bot: UserProfileType) -> bool:
