@@ -1,13 +1,15 @@
-# Speed check for non-functional changes: builds a ref with each compiler and prints interleaved bench nps
-# (bench node counts must match across compilers, or the build changed the search).
+# Speed check for non-functional changes: builds variants of a ref (compiler, optionally a make target such as pgo)
+# and optionally a base ref, then prints interleaved bench nps on the same machine (bench node counts must match,
+# or the build changed the search).
 name: nps
 run-name: "nps ${{ inputs.ref }}"
 on:
   workflow_dispatch:
     inputs:
       ref: {description: "engine commit", required: true}
-      compilers: {description: "space-separated CXX list", default: "g++ clang++"}
-      runs: {description: "interleaved bench runs per compiler", default: "5"}
+      variants: {description: "space-separated CXX or CXX:target list (e.g. clang++ clang++:pgo g++:pgo)", default: "g++ clang++"}
+      base: {description: "optional base commit, built with clang++ as 'base'", default: ""}
+      runs: {description: "interleaved bench runs per variant", default: "5"}
       depth: {description: "bench depth", default: "14"}
 
 permissions:
@@ -18,14 +20,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: {ref: "${{ inputs.ref }}"}
+        with: {ref: "${{ inputs.ref }}", path: dev}
+      - uses: actions/checkout@v4
+        if: inputs.base != ''
+        with: {ref: "${{ inputs.base }}", path: base}
       - name: Build
         run: |
-          for c in ${{ inputs.compilers }}; do $c --version | head -1; make -s -j4 CXX=$c EXE=engine-$c; done
+          profdata=$(command -v llvm-profdata || ls /usr/bin/llvm-profdata-* | sort -V | tail -1)
+          for v in ${{ inputs.variants }}; do
+            c=${v%%:*}; t=""; [ "$v" != "$c" ] && t=${v#*:}
+            $c --version | head -1
+            make -C dev -s -B -j4 CXX=$c EXE=engine PROFDATA=$profdata $t > /dev/null && cp dev/engine "engine-$v"
+          done
+          if [ -d base ]; then make -C base -s -j4 CXX=clang++ EXE=engine > /dev/null && cp base/engine engine-base; fi
+          nproc; grep -m1 "model name" /proc/cpuinfo
       - name: Bench
         run: |
           for r in $(seq ${{ inputs.runs }}); do
-            for c in ${{ inputs.compilers }}; do echo "$c $(./engine-$c bench ${{ inputs.depth }} | tail -1)"; done
+            for e in engine-*; do echo "${e#engine-} $(./$e bench ${{ inputs.depth }} | tail -1)"; done
           done | tee bench.txt
           python3 - <<'EOF'
           import collections, statistics
