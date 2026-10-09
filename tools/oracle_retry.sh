@@ -1,7 +1,7 @@
 #!/bin/bash
-# Retries creating the Always Free A1 VM until Oracle has capacity (Mumbai A1 is usually full). Alternates the full
-# 4 OCPU / 24 GB with 2 OCPU / 12 GB, which fits into scattered capacity more often (two 2-core VMs also use the whole
-# free allowance). Backs off on TooManyRequests. Tells Telegram when a VM exists, then stops. Runs as a systemd user
+# Retries creating the Always Free A1 VM until Oracle has capacity (Mumbai A1 is usually full). Size is the whole
+# Always Free A1 allowance, 2 OCPU / 12 GB (Oracle docs, checked 2026-10-09: 1,500 OCPU-hours a month; it was 4 / 24).
+# A bigger VM made during the trial is disabled and deleted after the trial unless the account is upgraded. Backs off on TooManyRequests. Tells Telegram when a VM exists, then stops. Runs as a systemd user
 # service on lynxS (always on), not on the Mac (sleeps, changes networks).
 set -u
 export SUPPRESS_LABEL_WARNING=True OCI_CLI_CONFIG_FILE=$HOME/.oci/config
@@ -12,11 +12,11 @@ cat "$HOME/.oci/mac_ssh_key.pub" "$HOME/.ssh/id_ed25519.pub" 2>/dev/null > "$KEY
 n=0
 while true; do
   n=$((n + 1))
-  if (( n % 2 )); then ocpus=4; mem=24; else ocpus=2; mem=12; fi
+  ocpus=2; mem=12
   out=$($OCI --no-retry compute instance launch --compartment-id "$COMPARTMENT" --availability-domain "$AD" \
     --shape VM.Standard.A1.Flex --shape-config "{\"ocpus\":$ocpus,\"memoryInGBs\":$mem}" \
     --image-id "$IMAGE" --subnet-id "$SUBNET" --assign-public-ip true \
-    --boot-volume-size-in-gbs $(( ocpus == 4 ? 200 : 100 )) --display-name "kavin-engine-${ocpus}c" \
+    --boot-volume-size-in-gbs 100 --display-name "kavin-engine-${ocpus}c" \
     --ssh-authorized-keys-file "$KEYS" 2>&1)
   if echo "$out" | grep -q '"lifecycle-state"'; then
     id=$(echo "$out" | grep -o '"id": "ocid1.instance[^"]*"' | head -1)
