@@ -13,7 +13,7 @@ ESP32-S3 microcontroller.
 | **Strength** | **3495 ± 11** on the CCRL Blitz scale: 1,536 games against 8 engines from 7 families ([below](#how-strong-is-it)); 3449 ± 11 the day before |
 | **Beats** | Ethereal 12.75 (59.4 %), Halogen 11 (61.2 %), Stash 35/37; Koivisto 7.0 nearly even (45.8 %) |
 | **Lichess** | blitz 2463 after 128 games (rapid still provisional), on a 2-core home server |
-| **Tested** | 44 logged tests, **219,192 games**, mostly on up to 40 parallel cloud machines; failures are logged too ([docs/sprt-log.md](docs/sprt-log.md)) |
+| **Tested** | 45 logged tests, **235,192 games**, mostly on up to 40 parallel cloud machines; failures are logged too ([docs/sprt-log.md](docs/sprt-log.md)) |
 | **Gained in one day** | 3288 → 3377 → **3463** against the same Stash anchors (2026-10-08): speed-ups, then a net trained on Leela Chess Zero data |
 | **Built by** | Kavin Jain, 18, Udaipur, India ([about](#about-and-honesty)) |
 
@@ -92,6 +92,7 @@ the test stops as soon as the evidence is strong enough either way.
 | Node-share time management | +7.2 ± 4.3 |
 | Transposition table in the quiescence search | +7.2 ± 4.3 |
 | SEE pruning in the main search | +6.4 ± 4.2 |
+| Cut-node late-move reductions | +4.0 ± 2.9 |
 | **Multi-threaded search, 2 threads vs 1** (Lichess bot) | **+69.2 ± 8.7** |
 | **Pondering: thinking on the opponent's time** (Lichess bot) | **+72.7 ± 11.4** |
 
@@ -132,7 +133,7 @@ best width lies for a given device ([docs/research/2026-10-08-nnue-scaling-study
 |---|---|
 | Engine (UCI, any GUI or lichess-bot) | `make` → `./engine` |
 | Tests | `make test` |
-| Bench signature | `./engine bench` → `3637967` nodes |
+| Bench signature | `./engine bench` → `4167422` nodes |
 | ESP32-S3 | `cd esp32 && pio run -e s3 -t upload`, then UCI over USB: `python tools/uci_bridge.py /dev/cu.usbmodemXXXX` |
 
 ## Layout
