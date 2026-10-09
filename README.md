@@ -87,6 +87,7 @@ the test stops as soon as the evidence is strong enough either way.
 | King-bucketed network inputs | +24.5 ± 8.1 |
 | Internal iterative reductions | +21.0 ± 6.6 |
 | Correction history | +17.6 ± 7.3 |
+| Threat-aware quiet-move history | +14.4 ± 6.8 |
 | Mop-up evaluation for won endgames | +12.5 ± 6.4 |
 | Node-share time management | +7.2 ± 4.3 |
 | SEE pruning in the main search | +6.4 ± 4.2 |
