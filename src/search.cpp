@@ -256,6 +256,13 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
     if (!pv_node && !in_check && excluded == NO_MOVE && depth <= 8 && std::abs(beta) < MATE_BOUND && static_eval - 80 * depth >= beta)
         return static_eval;
 
+    // Razoring: this far below alpha near the leaves, only captures could help; quiescence search decides.
+    if (!pv_node && !in_check && excluded == NO_MOVE && depth <= 3 && std::abs(alpha) < MATE_BOUND
+        && static_eval + 250 * depth <= alpha) {
+        const int s = qsearch(alpha, alpha + 1, ply);
+        if (s <= alpha) return s;
+    }
+
     // Null-move pruning: if passing still fails high, this node is very likely a cut-node.
     if (!pv_node && !in_check && null_ok && excluded == NO_MOVE && depth >= 3 && S->board.has_non_pawn_material(S->board.stm)
         && static_eval >= beta) {
