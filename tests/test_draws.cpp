@@ -11,14 +11,20 @@ static Move find(const char* uci) {
 }
 
 TEST(repetition) {
+    // A repeat inside the search (strictly after the root) is a draw; before the root it takes the third occurrence.
     CHECK(B.set_fen(START_FEN));
-    const char* seq[] = {"g1f3", "g8f6", "f3g1", "f6g8"};
-    for (int i = 0; i < 4; ++i) {
+    const char* seq[] = {"g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8"};
+    for (int i = 0; i < 8; ++i) {
         CHECK(!B.is_repetition());
         Move m = find(seq[i]);
         CHECK(m != NO_MOVE && B.make(m));
+        if (i == 4) {  // the position after the first g1f3 (ply 1), a second time
+            CHECK(B.is_repetition(5));   // root = start: the earlier occurrence is inside the search
+            CHECK(!B.is_repetition(4));  // root = after the first g1f3: that occurrence is the root itself
+            CHECK(!B.is_draw());         // game level: only twice
+        }
     }
-    CHECK(B.is_repetition());
+    CHECK(B.is_repetition());  // the start position a third time
     CHECK(B.is_draw());
 }
 
