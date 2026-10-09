@@ -315,7 +315,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         } else {
             int r = 0;  // late move reductions for quiet, non-checking moves
             if (depth >= 3 && legal > 3 && quiet && !in_check && !S->board.in_check())
-                r = std::max(0, std::min<int>(LMR[std::min(depth, 63)][std::min(legal, 63)] + cutnode, new_depth - 1));
+                r = std::max(0, std::min<int>(LMR[std::min(depth, 63)][std::min(legal, 63)] + cutnode - pv_node, new_depth - 1));
             score = -negamax(-alpha - 1, -alpha, new_depth - r, ply + 1, true, true);
             if (score > alpha && r > 0) score = -negamax(-alpha - 1, -alpha, new_depth, ply + 1, true, !cutnode);
             if (score > alpha && score < beta) score = -negamax(-beta, -alpha, new_depth, ply + 1, true, false);
