@@ -55,19 +55,23 @@ def ratings():
                      for k, v in perfs.items() if k in ("bullet", "blitz", "rapid", "classical") and v.get("games"))
 
 
-def wifi_drops():  # disconnects of the bot's Wi-Fi since the last report (each one is 2 carrier changes)
-    now = int(pathlib.Path("/sys/class/net/wlp2s0/carrier_changes").read_text())
-    state = json.loads(STATE.read_text()) if STATE.exists() else {}
-    last = state.get("carrier_changes", now)
+def link_drops():  # disconnects per link since the last report (each is 2 carrier changes); Ethernet is the bot's
+    state = json.loads(STATE.read_text()) if STATE.exists() else {}  # link since 2026-10-09, Wi-Fi the backup
+    now, out = {}, []
+    for label, dev in (("Ethernet", "enp1s0"), ("Wi-Fi", "wlp2s0")):
+        f = pathlib.Path(f"/sys/class/net/{dev}/carrier_changes")
+        if f.exists():
+            now[dev] = int(f.read_text())
+            out.append(f"{label} {max(0, now[dev] - state.get(dev, now[dev])) // 2}")
     STATE.parent.mkdir(parents=True, exist_ok=True)
-    STATE.write_text(json.dumps({"carrier_changes": now, "at": time.time()}))
-    return max(0, now - last) // 2
+    STATE.write_text(json.dumps({**now, "at": time.time()}))
+    return ", ".join(out) or "no link counters"
 
 
 def tablebases():
     n = len(list(SYZYGY.glob("*.rtbw"))) + len(list(SYZYGY.glob("*.rtbz")))
     size = sum(f.stat().st_size for f in SYZYGY.glob("*.rtb?")) / 1e9
-    return f"{n}/1020 files ({size:.0f} GB)" + (" complete" if n >= 1020 else ", 6-piece downloading" if n > 290 else "")
+    return f"{n} files ({size:.1f} GB): " + ("3-4-5 complete, up to 7 pieces online" if n >= 290 else "3-4-5 INCOMPLETE")
 
 
 def score_line(gs):
@@ -108,7 +112,7 @@ def cmd_report(hours=24):
     for g in losses[:5]:
         lines.append(f"Loss: {name(side(g)[1])}, {g['speed']}, {g['status']} {link(g)}")
     if len(losses) > 5: lines.append(f"…and {len(losses) - 5} more losses")
-    lines += [f"Ratings now: {ratings()}", f"Wi-Fi drops since last report: {wifi_drops()}", f"Tablebases: {tablebases()}",
+    lines += [f"Ratings now: {ratings()}", f"Link drops since last report: {link_drops()}", f"Tablebases: {tablebases()}",
               "Analyse a loss: /analyze (last game) or ask Hermes \"analyse game <id>\""]
     print("\n".join(lines))
 

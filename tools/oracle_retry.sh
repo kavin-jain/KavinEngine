@@ -9,6 +9,11 @@ source "$HOME/.oci/launch.env"
 OCI=$HOME/.venvs/oci/bin/oci
 KEYS=$HOME/.oci/authorized_keys
 cat "$HOME/.oci/mac_ssh_key.pub" "$HOME/.ssh/id_ed25519.pub" 2>/dev/null > "$KEYS"
+# Never a second A1 VM: beyond the Always Free allowance Oracle disables and then deletes EVERY A1 VM after the trial
+# (Free Tier docs, 2026-10-10), and the trial account's limit (16 A1 cores) would let the launch succeed.
+existing=$($OCI compute instance list --compartment-id "$COMPARTMENT" --raw-output \
+  --query "data[?\"lifecycle-state\"!='TERMINATED' && shape=='VM.Standard.A1.Flex'].\"display-name\"") || exit 1
+if [ "$existing" != "[]" ]; then echo "$(date '+%F %T') an A1 VM already exists, not creating another: $existing"; exit 0; fi
 n=0
 while true; do
   n=$((n + 1))
