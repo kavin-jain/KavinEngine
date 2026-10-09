@@ -57,6 +57,14 @@ TEST(converts_bare_king_endings) {
     }
 }
 
+TEST(mate_on_the_fiftieth_move) {
+    // Checkmate ends the game at once (FIDE 5.1.1), even on the move that completes the 50-move count. Ra8# reaches
+    // halfmove 100 here, and the search scored that position as a 50-move draw (0) before seeing the mate.
+    SearchResult r = run("7k/8/6K1/8/8/8/8/R7 w - - 99 120", 4);
+    CHECK(move_to_uci(r.best) == "a1a8");
+    CHECK_EQ(r.score, MATE - 1);
+}
+
 TEST(bare_kings_is_draw) {
     SearchResult r = run("8/8/8/8/8/8/8/K6k w - - 0 1", 4);
     CHECK_EQ(r.score, 0);
