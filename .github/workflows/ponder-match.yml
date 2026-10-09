@@ -1,0 +1,66 @@
+# Pondering on vs off, same engine (fastchess has no ponderhit, so this uses cutechess-cli). Each job plays a fixed
+# number of game pairs; the score gives the Elo that pondering is worth and the PGNs show any time losses.
+name: ponder-match
+run-name: "ponder ${{ inputs.dev }}"
+on:
+  workflow_dispatch:
+    inputs:
+      dev: {description: "engine commit (must support go ponder)", required: true}
+      tc: {description: "time control", default: "10+0.1"}
+      rounds: {description: "game pairs per job", default: "100"}
+      jobs: {description: "JSON list of job numbers", default: "[1,2,3,4,5,6,7,8]"}
+
+permissions:
+  contents: read
+
+jobs:
+  games:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ fromJSON(inputs.jobs) }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ inputs.dev }}", path: dev}
+      - name: Install cutechess-cli, fetch book (SHA-checked), build engine
+        run: |
+          sudo apt-get -qq update > /dev/null && sudo apt-get -qq install -y cutechess > /dev/null
+          CC=$(command -v cutechess-cli || echo /usr/games/cutechess-cli); echo "CC=$CC" >> "$GITHUB_ENV"; $CC --version | head -1
+          curl -sSL -o uho.zip https://github.com/official-stockfish/books/raw/master/UHO_Lichess_4852_v1.epd.zip
+          python3 -m zipfile -e uho.zip .
+          echo "7a7f6470615a69c6cf23d565417701d38732876f480af90d67b42abade35644a  UHO_Lichess_4852_v1.epd" | sha256sum -c -
+          make -C dev -j4 -s CXX=clang++ EXE=engine && dev/engine bench | tail -1
+      - name: Play games
+        run: |
+          # Two games at once on 4 vCPUs: a pondering engine keeps one core busy on its opponent's time.
+          $CC -engine cmd=dev/engine name=ponder ponder -engine cmd=dev/engine name=noponder \
+            -each proto=uci tc=${{ inputs.tc }} option.Hash=16 \
+            -openings file=UHO_Lichess_4852_v1.epd format=epd order=random \
+            -srand $(( ${{ matrix.job }} * 7919 )) -games 2 -rounds ${{ inputs.rounds }} -repeat \
+            -concurrency 2 -recover -pgnout games.pgn > match.log 2>&1 || true
+          tail -5 match.log
+          python3 - <<'EOF'
+          import json, re
+          log = open("match.log").read()
+          w, l, d = map(int, re.findall(r"Score of ponder vs noponder: (\d+) - (\d+) - (\d+)", log)[-1])
+          pgn = open("games.pgn").read()
+          tl = {"ponder": 0, "noponder": 0}
+          for g in pgn.split("[Event ")[1:]:
+              if re.search(r'\[Termination "time forfeit"\]', g):
+                  res = re.search(r'\[Result "([^"]+)"\]', g).group(1)
+                  loser = re.search(r'\[%s "([^"]+)"\]' % ("White" if res == "0-1" else "Black"), g).group(1)
+                  tl[loser] += 1
+          r = {"wins": w, "losses": l, "draws": d, "time_losses": tl}
+          json.dump(r, open("result.json", "w")); print(r)
+          EOF
+          xz -9 games.pgn
+      - uses: actions/upload-artifact@v4
+        with:
+          name: "ponder-j${{ matrix.job }}"
+          path: |
+            result.json
+            games.pgn.xz
+            match.log
+          retention-days: 30
