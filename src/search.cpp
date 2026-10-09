@@ -267,6 +267,28 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         if (s >= beta) return s >= MATE_BOUND ? beta : s;
     }
 
+    // ProbCut: a capture that beats beta by a wide margin in quiescence search and then in a search 4 plies shallower
+    // would very likely refute this node at full depth too.
+    const int probcut_beta = beta + 200;
+    if (!pv_node && !in_check && excluded == NO_MOVE && depth >= 5 && std::abs(beta) < MATE_BOUND
+        && !(tt_hit && tte.depth >= depth - 3 && score_from_tt(tte.score, ply) < probcut_beta)) {
+        MoveList caps;
+        generate(S->board, caps, true);
+        for (int i = 0; i < caps.size; ++i) {
+            const Move m = caps.moves[i];
+            if (!see_ge(S->board, m, probcut_beta - static_eval) || !S->board.make(m)) continue;
+            if (nnue_ready()) nnue_update(S->acc[ply], S->acc[ply + 1], S->board);
+            int s = -qsearch(-probcut_beta, -probcut_beta + 1, ply + 1);
+            if (s >= probcut_beta) s = -negamax(-probcut_beta, -probcut_beta + 1, depth - 4, ply + 1, true, !cutnode);
+            S->board.unmake(m);
+            if (S->stopped) return 0;
+            if (s >= probcut_beta) {
+                g_tt.store(S->board.key, m, score_to_tt(s, ply), depth - 3, BOUND_LOWER);
+                return s;
+            }
+        }
+    }
+
     // Singular extension: if every move but the TT move fails low against a margin below the TT score, the TT move
     // is the only good one here, so search it one ply deeper. If another move also beats beta, two moves refute this
     // node and it can be cut (multi-cut).
