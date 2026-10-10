@@ -13,7 +13,7 @@ ESP32-S3 microcontroller.
 | **Strength** | **3495 ± 11** on the CCRL Blitz scale: 1,536 games against 8 engines from 7 families ([below](#how-strong-is-it)); 3449 ± 11 the day before |
 | **Beats** | Ethereal 12.75 (59.4 %), Halogen 11 (61.2 %), Stash 35/37; Koivisto 7.0 nearly even (45.8 %) |
 | **Lichess** | blitz 2463 after 128 games (rapid still provisional), on a 2-core home server |
-| **Tested** | 54 logged tests, **329,592 games**, mostly on up to 40 parallel cloud machines; failures are logged too ([docs/sprt-log.md](docs/sprt-log.md)) |
+| **Tested** | 55 logged tests, **332,792 games**, mostly on up to 40 parallel cloud machines; failures are logged too ([docs/sprt-log.md](docs/sprt-log.md)) |
 | **Gained in one day** | 3288 → 3377 → **3463** against the same Stash anchors (2026-10-08): speed-ups, then a net trained on Leela Chess Zero data |
 | **Built by** | Kavin Jain, 18, Udaipur, India ([about](#about-and-honesty)) |
 
@@ -86,6 +86,7 @@ the test stops as soon as the evidence is strong enough either way.
 | Razoring (+22.0 ± 6.4 at the longer 30+0.3) | +36.2 ± 9.2 |
 | SEE in quiescence search and capture ordering | +35.0 ± 7.1 |
 | King-bucketed network inputs | +24.5 ± 8.1 |
+| Late move pruning | +22.0 ± 6.9 |
 | Net retrained on 1.09B Leela positions with a 6× longer schedule | +21.7 ± 7.1 |
 | Internal iterative reductions | +21.0 ± 6.6 |
 | Correction history | +17.6 ± 7.3 |
@@ -137,7 +138,7 @@ best width lies for a given device ([docs/research/2026-10-08-nnue-scaling-study
 |---|---|
 | Engine (UCI, any GUI or lichess-bot) | `make` → `./engine` |
 | Tests | `make test` |
-| Bench signature | `./engine bench` → `3725814` nodes |
+| Bench signature | `./engine bench` → `2554894` nodes |
 | ESP32-S3 | `cd esp32 && pio run -e s3 -t upload`, then UCI over USB: `python tools/uci_bridge.py /dev/cu.usbmodemXXXX` |
 
 ## Layout
