@@ -19,6 +19,10 @@ TT g_tt;
 #define HISTORY_THREATS 1  // threat-aware quiet history (+14 Elo on PC); the ESP32 build turns it off to save 48 KB
 #endif
 constexpr int HT = HISTORY_THREATS ? 2 : 1;
+#ifndef CONT_HIST
+#define CONT_HIST 1  // continuation history (a 1.2 MB table per thread would not fit the ESP32's RAM: it turns this off)
+#endif
+constexpr int CH = CONT_HIST ? 12 * 64 : 1;
 #ifndef CORRHIST_SIZE
 #define CORRHIST_SIZE 16384  // entries per side; ESP32 builds use a smaller table
 #endif
@@ -50,6 +54,8 @@ struct Searcher {
     Accumulator acc[MAX_PLY + 1];  // acc[ply] matches the board at that ply
     int eval_stack[MAX_PLY + 1];   // static eval per ply (-INF when in check)
     int16_t corr[2][CORRHIST_SIZE];  // pawn-structure correction history, scaled by 256
+    int16_t cont[CH][CH];            // continuation history [previous move][this move], each as piece * 64 + to
+    int moved[MAX_PLY];              // the move made at each ply as piece * 64 + to; -1 for a null move
 };
 // Static storage: these arrays must not live on the small ESP32 task stack. One searcher per thread; S is this
 // thread's. The TT is shared (Lazy SMP); node counts of helpers are read racily, for reporting only.
@@ -156,9 +162,19 @@ int16_t& history_of(Move m, Bitboard threats) {
     return S->history[S->board.stm][HISTORY_THREATS ? (threats >> f) & 1 : 0][HISTORY_THREATS ? (threats >> t) & 1 : 0][f][t];
 }
 
+// Continuation history (chessprogramming.org "History Heuristic", counter-move and follow-up history): how well a
+// quiet move did after the move `back` plies earlier (1: the opponent's last move, 2: our own previous move).
+int16_t* cont_of(int ply, int back) {
+    if (!CONT_HIST || ply < back || S->moved[ply - back] < 0) return nullptr;
+    return S->cont[S->moved[ply - back]];
+}
+
+int move_key(Move m) { return S->board.mailbox[from_sq(m)] * 64 + to_sq(m); }
+
 // Captures and promotions are scored as if SEE >= 0 and marked pending: pick() runs SEE only when such a move would
 // be chosen, and demotes it to the losing-capture band if it fails. Same order as scoring SEE up front, fewer SEE calls.
 void score_moves(const MoveList& list, int16_t* scores, bool* see_pending, Move tt_move, int ply, Bitboard threats) {
+    const int16_t *c1 = cont_of(ply, 1), *c2 = cont_of(ply, 2);
     for (int i = 0; i < list.size; ++i) {
         const Move m = list.moves[i];
         see_pending[i] = false;
@@ -171,7 +187,10 @@ void score_moves(const MoveList& list, int16_t* scores, bool* see_pending, Move 
             see_pending[i] = true;
         } else if (m == S->killers[ply][0]) scores[i] = 19000;
         else if (m == S->killers[ply][1]) scores[i] = 18999;
-        else scores[i] = history_of(m, threats);  // bounded to +-16384
+        else {  // the mean of three tables bounded to +-16384 stays below the killers
+            const int k = move_key(m);
+            scores[i] = int16_t((history_of(m, threats) + (c1 ? c1[k] : 0) + (c2 ? c2[k] : 0)) / 3);
+        }
     }
 }
 
@@ -190,9 +209,12 @@ Move pick(MoveList& list, int16_t* scores, bool* see_pending, int i) {  // selec
     }
 }
 
-void update_history(Move m, int bonus, Bitboard threats) {  // "gravity": keeps values within +-16384
-    int16_t& h = history_of(m, threats);
-    h = int16_t(h + bonus - h * std::abs(bonus) / 16384);
+void gravity(int16_t& h, int bonus) { h = int16_t(h + bonus - h * std::abs(bonus) / 16384); }  // keeps +-16384
+
+void update_history(Move m, int bonus, Bitboard threats, int ply) {
+    gravity(history_of(m, threats), bonus);
+    for (int back = 1; back <= 2; ++back)
+        if (int16_t* c = cont_of(ply, back)) gravity(c[move_key(m)], bonus);
 }
 
 int qsearch(int alpha, int beta, int ply) {
@@ -228,6 +250,7 @@ int qsearch(int alpha, int beta, int ply) {
     for (int i = 0; i < list.size; ++i) {
         Move m = pick(list, scores, see_pending, i);
         if (!in_check && scores[i] < 0) break;  // losing captures (SEE < 0, sorted last) can't beat the stand-pat
+        S->moved[ply] = move_key(m);
         if (!S->board.make(m)) continue;
         if (nnue_ready()) nnue_update(S->acc[ply], S->acc[ply + 1], S->board);
         ++legal;
@@ -304,6 +327,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
     // Null-move pruning: if passing still fails high, this node is very likely a cut-node.
     if (!pv_node && !in_check && null_ok && excluded == NO_MOVE && depth >= 3 && S->board.has_non_pawn_material(S->board.stm)
         && static_eval >= beta) {
+        S->moved[ply] = -1;
         S->board.make_null();
         S->acc[ply + 1] = S->acc[ply];
         int s = -negamax(-beta, -beta + 1, depth - 1 - (NMP_BASE + depth / NMP_DIV), ply + 1, false, !cutnode);
@@ -351,6 +375,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         // kept (they may mate), so the check test runs after make(); a futile move needs no SEE (both prunes need !check).
         const bool futile = !pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 6 && static_eval + FUT_BASE + FUT_MARGIN * depth <= alpha;
         const bool quiet_hangs = !futile && quiet && !pv_node && !in_check && best > -MATE_BOUND && depth <= 8 && !see_ge(S->board, m, -SEE_QUIET * depth);
+        S->moved[ply] = move_key(m);
         if (!S->board.make(m)) continue;
         if (futile && !S->board.in_check()) { S->board.unmake(m); continue; }
         if (quiet_hangs && !S->board.in_check()) { S->board.unmake(m); continue; }
@@ -384,8 +409,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
                     if (quiet) {
                         if (S->killers[ply][0] != m) { S->killers[ply][1] = S->killers[ply][0]; S->killers[ply][0] = m; }
                         const int bonus = std::min(depth * depth, HIST_MAX);
-                        update_history(m, bonus, threats);
-                        for (int q = 0; q < n_quiets; ++q) update_history(quiets[q], -bonus, threats);
+                        update_history(m, bonus, threats, ply);
+                        for (int q = 0; q < n_quiets; ++q) update_history(quiets[q], -bonus, threats, ply);
                     }
                     break;
                 }
@@ -466,6 +491,7 @@ void clear_search_state() {
         std::memset(t.history, 0, sizeof t.history);
         std::memset(t.killers, 0, sizeof t.killers);
         std::memset(t.corr, 0, sizeof t.corr);
+        std::memset(t.cont, 0, sizeof t.cont);
     }
 }
 
