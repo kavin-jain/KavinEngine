@@ -99,8 +99,8 @@ the test stops as soon as the evidence is strong enough either way.
 | **Pondering: thinking on the opponent's time** (Lichess bot) | **+72.7 ± 11.4** |
 
 Plus bit-identical speed-ups (same moves, faster): clang instead of gcc **+8.0 %**, refresh cache **+4.2 %**, lazy SEE
-**+1.6 %** nodes per second. On this engine 1 % speed ≈ 1 Elo. The pondering figure was measured with two games per
-4-vCPU runner, where the pondering side may slow its opponent's search; a re-measurement with one game per runner is pending.
+**+1.6 %** nodes per second. On this engine 1 % speed ≈ 1 Elo. The pondering figure holds with one game per 4-vCPU runner
+(+71.3 ± 11.7, 1,600 games), so it is not an artefact of the pondering side slowing its opponent.
 
 **What did not work, kept for the record:** continuation history, capture history, late-move pruning, an "improving"
 flag, eval-based null-move reductions and two kinds of history-driven reductions all lost Elo here. Training on the
