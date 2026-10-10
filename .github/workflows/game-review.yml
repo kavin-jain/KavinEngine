@@ -1,0 +1,43 @@
+# Daily review of the Lichess bot's games (tools/review_games.py): Stockfish 19 grades every move of ours, the current
+# main engine replays each blunder, and open.epd lists the ones it still gets wrong. Runs after the night's games:
+# Lichess caps bots at 100 bot-vs-bot games a day, which the bot plays in the hours after the cap resets (~19:50 IST).
+name: game-review
+on:
+  schedule:
+    - cron: "47 23 * * *"  # 05:17 IST
+  workflow_dispatch:
+    inputs:
+      hours: {description: "review the games of the last N hours", default: "25"}
+      nodes: {description: "Stockfish nodes per position", default: "500000"}
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Stockfish 19
+        id: cache
+        uses: actions/cache@v4
+        with: {path: stockfish-bin, key: stockfish-sf_19-x86-64-avx2}
+      - name: Build Stockfish 19
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone -q --depth 1 -b sf_19 https://github.com/official-stockfish/Stockfish sf
+          make -C sf/src -s -j4 build ARCH=x86-64-avx2 > /dev/null && cp sf/src/stockfish stockfish-bin
+      - name: Build the engine (main)
+        run: make -j4 -s CXX=clang++ EXE=engine && ./engine bench | tail -1
+      - name: Review
+        env:
+          HOURS: ${{ inputs.hours || '25' }}
+          NODES: ${{ inputs.nodes || '500000' }}
+        run: |
+          pip install -q chess
+          python3 tools/review_games.py --hours "$HOURS" --nodes "$NODES" --stockfish ./stockfish-bin --engine ./engine --out review
+          cat review/report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: "game-review-${{ github.run_id }}", path: review, if-no-files-found: ignore, retention-days: 90}
