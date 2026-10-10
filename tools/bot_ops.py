@@ -154,7 +154,28 @@ def cmd_analyze(gid=None, run=False):
         log.write(f"{time.strftime('%F %T')} {gid} hermes-send exit {sent}\n" + "\n".join(body) + "\n\n")
 
 
-IDLE_LIMIT, RESTART_GAP, BOT_GAMES_PER_DAY = 20 * 60, 30 * 60, 100  # Lichess allows 100 bot-vs-bot games a day
+IDLE_LIMIT, RESTART_GAP = 20 * 60, 30 * 60
+
+
+def bot_cap_until():
+    """When Lichess's bot-vs-bot cap ends (0: not capped), from lichess-bot's own rate-limit error in the journal.
+    lila's BotLimit counts every bot-vs-bot game START (aborted ones too) in a 24 h window that opens at the first
+    game, so counting exported games misses it (99 vs 100 on 2026-10-10). The error is rich-wrapped over many lines,
+    with the source column (matchmaking.py:129) inside the message."""
+    out = subprocess.run(["journalctl", "--user", "-u", "lichess-bot", "--since", "-25h", "-o", "json",
+                          "--output-fields=MESSAGE"], capture_output=True, text=True).stdout
+    entries = [json.loads(l) for l in out.splitlines()]
+    starts, text, pos = [], [], 0
+    for e in entries:
+        m = e.get("MESSAGE")
+        m = m if isinstance(m, str) else ""
+        starts.append(pos); text.append(m); pos += len(m) + 1
+    joined = " ".join(text)
+    until = 0
+    for hit in re.finditer(r"You\s+played\s+\d+\s+games.{0,800}?bot\.vsBot\.day',\s*'seconds':\s*(\d+)", joined, re.S):
+        i = max(j for j, st in enumerate(starts) if st <= hit.start())
+        until = max(until, int(entries[i]["__REALTIME_TIMESTAMP"]) / 1e6 + int(hit.group(1)))
+    return until
 
 
 def cmd_watchdog():
@@ -174,16 +195,15 @@ def cmd_watchdog():
     if not status.get("online"):
         reason = "offline on Lichess"
     elif idle > IDLE_LIMIT:
-        day = games_since(24)
-        bot_games = sum(1 for g in day if side(g)[1].get("user", {}).get("title") == "BOT")
-        if bot_games >= BOT_GAMES_PER_DAY:
+        cap = bot_cap_until()
+        if cap > now:  # lichess-bot already waits until then by itself: a restart only re-hits the limit
             if not wd.get("cap_reported"):
                 wd["cap_reported"] = True
                 subprocess.run([str(HERMES), "send", "-t", "telegram", "-q"], text=True,
-                               input=f"♟ {BOT} reached Lichess's {BOT_GAMES_PER_DAY} bot games in 24 h; it waits for humans "
-                                     f"or for the window to roll over. No restart needed.")
+                               input=f"♟ {BOT} reached Lichess's 100 bot-vs-bot games for the day; bot games resume at "
+                                     f"{time.strftime('%H:%M', time.localtime(cap))} (humans can still challenge). No restart needed.")
         else:
-            reason = f"idle for {idle / 60:.0f} min ({bot_games} bot games in 24 h)"
+            reason = f"idle for {idle / 60:.0f} min"
     if status.get("playing") or idle < IDLE_LIMIT:
         wd["cap_reported"] = False
     if reason and now - wd.get("last_restart", 0) > RESTART_GAP:
