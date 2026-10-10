@@ -3,7 +3,7 @@
 import glob, os, shutil, subprocess
 
 REF = "__REF__"
-JOBS = __JOBS__  # [(net_id, hidden, superbatches, wdl, data: lichess|sp1|sp2|own|leela|leela2, init "<net>-<sb>" or "", lr)]
+JOBS = __JOBS__  # [(net_id, hidden, superbatches, wdl, data: lichess|sp1|sp2|own|leela|leela2|leela4, init "<net>-<sb>" or "", lr)]
 
 
 def sh(cmd):
@@ -77,6 +77,8 @@ def leela_stream(iters):  # several S2 files, streamed download -> zstd -> shard
     os.makedirs(d, exist_ok=True)
     sh("pip install -q zstandard && make -C /tmp/ke -s convert")
     for i in iters:
+        if shutil.disk_usage(d).free < 25e9:  # each file adds ~17 GB of shards; train on what fits
+            print(f"disk nearly full: stopping before iter-{i}", flush=True); break
         f = f"test77nov-unfilt-test79-maraprmay-v6-dd.skip-see-ge0.wdl-pdist.iter-{i}.bullet.bin.zst"
         sh(f"set -o pipefail; curl -sSfL https://huggingface.co/datasets/linrock/bullet-training-data/resolve/main/S2/{f} | "
            "python3 -c 'import sys, zstandard; zstandard.ZstdDecompressor().copy_stream(sys.stdin.buffer, sys.stdout.buffer)' | "
@@ -106,10 +108,11 @@ def selected(base, mode, fraction, net="/tmp/ke/nets/wb-ft-w3.bin"):  # surprise
 
 DATA = {"lichess": lichess, "sp1": lambda: selfplay(("sp1", 6)), "sp2": lambda: selfplay(("sp2", 16)),
         "own": lambda: selfplay(("sp1", 6), ("sp2", 16)), "leela": leela, "leela2": lambda: leela_stream((1, 2)),
+        "leela4": lambda: leela_stream((1, 2, 3, 4)),
         "sp2-hard25": lambda: selected("sp2", "select", 0.25), "sp2-rand25": lambda: selected("sp2", "random", 0.25),
         **{t: (lambda t=t: selfplay((t, 12))) for t in ("rl-none", "rl-sf19", "rl-leela", "sp3-25k")}}
 # Labels from another engine or search depth: EVAL_SCALE maps them to the main net's cp (the same rule for every arm).
-CALIBRATED = {"leela", "leela2", "rl-none", "rl-sf19", "rl-leela", "sp3-25k"}
+CALIBRATED = {"leela", "leela2", "leela4", "rl-none", "rl-sf19", "rl-leela", "sp3-25k"}
 ready = {}
 for net, hidden, sbs, wdl, data, init, lr in JOBS:
     if data not in ready: ready[data] = DATA[data]()
