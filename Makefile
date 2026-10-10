@@ -1,6 +1,6 @@
 # PC build. OpenBench/CCRL convention: `make EXE=<path> EVALFILE=<net>`.
 EXE         ?= engine
-EVALFILE    ?= nets/leela2-256-l240.bin
+EVALFILE    ?= nets/leela4-256-l400.bin
 NNUE_HIDDEN ?= 256
 NNUE_KB     ?= 10
 NNUE_OB     ?= 8
