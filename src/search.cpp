@@ -82,6 +82,7 @@ TUNABLE(LMR_BASE, 75, 0, 150)         // LMR table LMR_BASE / 100 + ln(depth) ln
 TUNABLE(LMR_DIV, 225, 150, 350)
 TUNABLE(HIST_MAX, 1200, 400, 2400)    // history bonus min(depth^2, HIST_MAX)
 TUNABLE(ASP_DELTA, 25, 10, 60)        // first aspiration window half-width, centipawns
+TUNABLE(LMP_BASE, 3, 1, 8)            // late move pruning: quiet moves after LMP_BASE + depth^2 moves skipped (depth <= 8)
 std::atomic<bool> g_helpers_stop{false};  // set when the main thread has finished: helpers stop too
 
 uint64_t total_nodes() {
@@ -343,6 +344,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         // SEE pruning: near the leaves, skip captures that lose material by force...
         if (!pv_node && !in_check && !quiet && best > -MATE_BOUND && depth <= 8 && !see_ge(S->board, m, -SEE_CAPTURE * depth * depth))
             continue;
+        // Late move pruning: near the leaves, quiet moves this late in the ordering almost never matter.
+        if (!pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 8 && legal >= LMP_BASE + depth * depth) continue;
         // ...and quiet moves that hang the moved piece (decided below, after make(), so checks are kept).
         // Futility pruning: a quiet move cannot lift this static eval above alpha so close to the leaves. Checks are
         // kept (they may mate), so the check test runs after make(); a futile move needs no SEE (both prunes need !check).
