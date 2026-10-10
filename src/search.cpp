@@ -289,6 +289,10 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
     const int raw_eval = in_check ? -INF : eval_at(ply);
     const int static_eval = in_check ? -INF : corrected(raw_eval);
     S->eval_stack[ply] = static_eval;
+    // Improving: our static eval rose since our previous move (2 plies back; 4 if we were in check then). Late moves
+    // are pruned and reduced less when improving. (In the reverse futility margin it lost: test/improving, H0.)
+    const bool improving = !in_check && ply >= 2 &&
+        (S->eval_stack[ply - 2] != -INF ? static_eval > S->eval_stack[ply - 2] : ply < 4 || static_eval > S->eval_stack[ply - 4]);
 
     // Reverse futility pruning: this far above beta near the leaves, assume the node fails high.
     if (!pv_node && !in_check && excluded == NO_MOVE && depth <= RFP_DEPTH && std::abs(beta) < MATE_BOUND && static_eval - RFP_MARGIN * depth >= beta)
@@ -342,7 +346,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         if (m == excluded) continue;
         const bool quiet = !is_capture(m) && !is_promo(m);
         // Late move pruning: near the leaves, quiet moves this late in the ordering almost never matter.
-        if (!pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 8 && legal >= LMP_BASE + depth * depth) continue;
+        if (!pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 8 && legal >= (LMP_BASE + depth * depth) / (2 - improving)) continue;
         // SEE pruning: near the leaves, skip captures that lose material by force...
         if (!pv_node && !in_check && !quiet && best > -MATE_BOUND && depth <= 8 && !see_ge(S->board, m, -SEE_CAPTURE * depth * depth))
             continue;
@@ -364,7 +368,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         } else {
             int r = 0;  // late move reductions for quiet, non-checking moves
             if (depth >= 3 && legal > 3 && quiet && !in_check && !S->board.in_check())
-                r = std::max(0, std::min<int>(LMR[std::min(depth, 63)][std::min(legal, 63)] + cutnode, new_depth - 1));
+                r = std::max(0, std::min<int>(LMR[std::min(depth, 63)][std::min(legal, 63)] + cutnode + !improving, new_depth - 1));
             score = -negamax(-alpha - 1, -alpha, new_depth - r, ply + 1, true, true);
             if (score > alpha && r > 0) score = -negamax(-alpha - 1, -alpha, new_depth, ply + 1, true, !cutnode);
             if (score > alpha && score < beta) score = -negamax(-beta, -alpha, new_depth, ply + 1, true, false);
