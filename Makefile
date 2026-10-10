@@ -19,6 +19,9 @@ else
 endif
 CXXFLAGS ?= -std=c++17 -O3 -Wall -Wextra -DNDEBUG $(NATIVE)
 CXXFLAGS += -DDEFAULT_THREADS=$(THREADS) -DNNUE_HIDDEN=$(NNUE_HIDDEN) -DNNUE_KING_BUCKETS=$(NNUE_KB) -DNNUE_OUTPUT_BUCKETS=$(NNUE_OB)
+ifeq ($(TUNE),1)
+  CXXFLAGS += -DTUNE  # search constants as UCI options, for SPSA (tools/spsa.py)
+endif
 SRC      := $(wildcard src/*.cpp) pc/platform_pc.cpp
 HDR      := $(wildcard src/*.h)
 NET_CPP  := build/net_$(basename $(notdir $(EVALFILE))).cpp

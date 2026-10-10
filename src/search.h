@@ -25,6 +25,11 @@ extern int g_threads;        // search threads (UCI "Threads"), 1..SEARCH_THREAD
 extern int g_move_overhead;  // ms kept in reserve per move for GUI/network lag (UCI "Move Overhead")
 
 void search_init();         // reduction table; call once
-void clear_search_state();  // ucinewgame: TT, history, killers
+void clear_search_state();
+#ifdef TUNE
+#include <string>
+void tune_print_options();  // UCI options for the tunable search constants (make TUNE=1, for SPSA)
+void tune_set_option(const std::string& name, const std::string& value);
+#endif  // ucinewgame: TT, history, killers
 // Searches a copy of `root`. Never returns NO_MOVE if a legal move exists. Prints UCI info lines if verbose.
 SearchResult search(const Board& root, const Limits& limits, bool verbose);

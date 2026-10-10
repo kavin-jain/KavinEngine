@@ -146,6 +146,9 @@ void set_option(std::istringstream& ss) {
     } else if (name == "Clock Reserve") {
         g_clock_reserve = int(std::clamp(std::strtol(value.c_str(), nullptr, 10), 0L, 120000L));
     }
+#ifdef TUNE
+    tune_set_option(name, value);
+#endif
 }
 
 }  // namespace
@@ -186,6 +189,9 @@ bool uci_command(const std::string& raw) {
         write_line("option name Threads type spin default " + std::to_string(g_threads) + " min 1 max " + std::to_string(SEARCH_THREADS_MAX));
 #if SEARCH_THREADS_MAX > 1
         write_line("option name Ponder type check default false");  // GUIs send "go ponder" only when this is on
+#endif
+#ifdef TUNE
+        tune_print_options();
 #endif
         write_line("uciok");
     } else if (cmd == "isready") write_line("readyok");

@@ -10,6 +10,13 @@ jobs:
       - uses: actions/checkout@v4
       - run: make -j4 -s test
       - run: make -j4 -s CXX=clang++ && ./engine bench | tail -1
+      - name: SPSA build (make TUNE=1) matches the release bench at defaults, and its options take effect
+        run: |
+          make -j4 -s CXX=clang++ TUNE=1 EXE=engine-tune
+          a=$(./engine bench | tail -1 | cut -d' ' -f1); b=$(./engine-tune bench | tail -1 | cut -d' ' -f1)
+          c=$( (printf 'setoption name LMR_DIV value 300\nbench\n'; sleep 20; echo quit) | ./engine-tune | grep ' nps$' | cut -d' ' -f1)
+          echo "release $a, TUNE $b, TUNE with LMR_DIV 300: $c"; [ "$a" = "$b" ] && [ -n "$c" ] && [ "$c" != "$a" ]
+          echo uci | ./engine-tune | grep -c "type spin"
       - name: Data tools build with both compilers (the Kaggle trainer uses g++)
         run: |
           for c in g++ clang++; do

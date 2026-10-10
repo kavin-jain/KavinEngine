@@ -56,6 +56,32 @@ struct Searcher {
 Searcher searchers[SEARCH_THREADS_MAX];
 SEARCH_TLS Searcher* S = &searchers[0];
 uint8_t LMR[64][64];
+
+// Search constants. `make TUNE=1` makes each one a UCI spin option for SPSA tuning (tools/spsa.py); the normal build
+// keeps them compile-time constants, so it compiles to the same code.
+#ifdef TUNE
+struct Tunable { const char* name; int* value; int lo, hi; };
+Tunable tunables[32];
+int n_tunables = 0;
+struct TuneReg { TuneReg(const char* n, int* v, int lo, int hi) { tunables[n_tunables++] = {n, v, lo, hi}; } };
+#define TUNABLE(name, value, lo, hi) int name = value; TuneReg name##_reg(#name, &name, lo, hi);
+#else
+#define TUNABLE(name, value, lo, hi) constexpr int name = value;
+#endif
+TUNABLE(RFP_MARGIN, 80, 40, 160)      // reverse futility pruning: centipawns per ply of depth
+TUNABLE(RFP_DEPTH, 8, 4, 12)
+TUNABLE(RAZOR_MARGIN, 250, 100, 500)  // razoring: centipawns per ply of depth
+TUNABLE(NMP_BASE, 3, 2, 5)            // null-move reduction NMP_BASE + depth / NMP_DIV
+TUNABLE(NMP_DIV, 6, 3, 12)
+TUNABLE(SE_MARGIN, 16, 6, 48)         // singular-extension margin in eighths of a centipawn per ply (16: 2 * depth)
+TUNABLE(FUT_BASE, 100, 40, 200)       // futility pruning margin FUT_BASE + FUT_MARGIN * depth
+TUNABLE(FUT_MARGIN, 100, 40, 200)
+TUNABLE(SEE_CAPTURE, 20, 8, 40)       // SEE pruning thresholds -SEE_CAPTURE * depth^2 (captures), -SEE_QUIET * depth
+TUNABLE(SEE_QUIET, 50, 20, 100)
+TUNABLE(LMR_BASE, 75, 0, 150)         // LMR table LMR_BASE / 100 + ln(depth) ln(move number) / (LMR_DIV / 100)
+TUNABLE(LMR_DIV, 225, 150, 350)
+TUNABLE(HIST_MAX, 1200, 400, 2400)    // history bonus min(depth^2, HIST_MAX)
+TUNABLE(ASP_DELTA, 25, 10, 60)        // first aspiration window half-width, centipawns
 std::atomic<bool> g_helpers_stop{false};  // set when the main thread has finished: helpers stop too
 
 uint64_t total_nodes() {
@@ -264,12 +290,12 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
     S->eval_stack[ply] = static_eval;
 
     // Reverse futility pruning: this far above beta near the leaves, assume the node fails high.
-    if (!pv_node && !in_check && excluded == NO_MOVE && depth <= 8 && std::abs(beta) < MATE_BOUND && static_eval - 80 * depth >= beta)
+    if (!pv_node && !in_check && excluded == NO_MOVE && depth <= RFP_DEPTH && std::abs(beta) < MATE_BOUND && static_eval - RFP_MARGIN * depth >= beta)
         return static_eval;
 
     // Razoring: this far below alpha near the leaves, only captures could help; quiescence search decides.
     if (!pv_node && !in_check && excluded == NO_MOVE && depth <= 3 && std::abs(alpha) < MATE_BOUND
-        && static_eval + 250 * depth <= alpha) {
+        && static_eval + RAZOR_MARGIN * depth <= alpha) {
         const int s = qsearch(alpha, alpha + 1, ply);
         if (s <= alpha) return s;
     }
@@ -279,7 +305,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         && static_eval >= beta) {
         S->board.make_null();
         S->acc[ply + 1] = S->acc[ply];
-        int s = -negamax(-beta, -beta + 1, depth - 1 - (3 + depth / 6), ply + 1, false, !cutnode);
+        int s = -negamax(-beta, -beta + 1, depth - 1 - (NMP_BASE + depth / NMP_DIV), ply + 1, false, !cutnode);
         S->board.unmake_null();
         if (S->stopped) return 0;
         if (s >= beta) return s >= MATE_BOUND ? beta : s;
@@ -291,7 +317,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
     int extension = 0;
     if (ply > 0 && excluded == NO_MOVE && depth >= 8 && tt_hit && tt_move != NO_MOVE && tte.depth >= depth - 3
         && (tte.bound & BOUND_LOWER) && std::abs(score_from_tt(tte.score, ply)) < MATE_BOUND) {
-        const int singular_beta = score_from_tt(tte.score, ply) - 2 * depth;
+        const int singular_beta = score_from_tt(tte.score, ply) - SE_MARGIN * depth / 8;
         const int s = negamax(singular_beta - 1, singular_beta, (depth - 1) / 2, ply, false, cutnode, tt_move);
         if (S->stopped) return 0;
         if (s < singular_beta) extension = 1;
@@ -313,13 +339,13 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         if (m == excluded) continue;
         const bool quiet = !is_capture(m) && !is_promo(m);
         // SEE pruning: near the leaves, skip captures that lose material by force...
-        if (!pv_node && !in_check && !quiet && best > -MATE_BOUND && depth <= 8 && !see_ge(S->board, m, -20 * depth * depth))
+        if (!pv_node && !in_check && !quiet && best > -MATE_BOUND && depth <= 8 && !see_ge(S->board, m, -SEE_CAPTURE * depth * depth))
             continue;
         // ...and quiet moves that hang the moved piece (decided below, after make(), so checks are kept).
         // Futility pruning: a quiet move cannot lift this static eval above alpha so close to the leaves. Checks are
         // kept (they may mate), so the check test runs after make(); a futile move needs no SEE (both prunes need !check).
-        const bool futile = !pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 6 && static_eval + 100 + 100 * depth <= alpha;
-        const bool quiet_hangs = !futile && quiet && !pv_node && !in_check && best > -MATE_BOUND && depth <= 8 && !see_ge(S->board, m, -50 * depth);
+        const bool futile = !pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 6 && static_eval + FUT_BASE + FUT_MARGIN * depth <= alpha;
+        const bool quiet_hangs = !futile && quiet && !pv_node && !in_check && best > -MATE_BOUND && depth <= 8 && !see_ge(S->board, m, -SEE_QUIET * depth);
         if (!S->board.make(m)) continue;
         if (futile && !S->board.in_check()) { S->board.unmake(m); continue; }
         if (quiet_hangs && !S->board.in_check()) { S->board.unmake(m); continue; }
@@ -352,7 +378,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
                 if (score >= beta) {
                     if (quiet) {
                         if (S->killers[ply][0] != m) { S->killers[ply][1] = S->killers[ply][0]; S->killers[ply][0] = m; }
-                        const int bonus = std::min(depth * depth, 1200);
+                        const int bonus = std::min(depth * depth, HIST_MAX);
                         update_history(m, bonus, threats);
                         for (int q = 0; q < n_quiets; ++q) update_history(quiets[q], -bonus, threats);
                     }
@@ -410,8 +436,24 @@ TimeBudget compute_budget(const Limits& l, Color us) {
 void search_init() {
     for (int d = 0; d < 64; ++d)
         for (int m = 0; m < 64; ++m)
-            LMR[d][m] = (d && m) ? uint8_t(0.75 + std::log(double(d)) * std::log(double(m)) / 2.25) : 0;
+            LMR[d][m] = (d && m) ? uint8_t(LMR_BASE / 100.0 + std::log(double(d)) * std::log(double(m)) / (LMR_DIV / 100.0)) : 0;
 }
+
+#ifdef TUNE
+void tune_print_options() {
+    for (int i = 0; i < n_tunables; ++i)
+        write_line(std::string("option name ") + tunables[i].name + " type spin default " + std::to_string(*tunables[i].value)
+                   + " min " + std::to_string(tunables[i].lo) + " max " + std::to_string(tunables[i].hi));
+}
+
+void tune_set_option(const std::string& name, const std::string& value) {
+    for (int i = 0; i < n_tunables; ++i)
+        if (name == tunables[i].name) {
+            *tunables[i].value = int(std::clamp(std::strtol(value.c_str(), nullptr, 10), long(tunables[i].lo), long(tunables[i].hi)));
+            search_init();  // the LMR table depends on LMR_BASE and LMR_DIV
+        }
+}
+#endif
 
 void clear_search_state() {
     g_tt.clear();
@@ -444,7 +486,7 @@ static SearchResult iterate(const Board& root, const Limits& limits, bool verbos
     std::memset(S->root_nodes, 0, sizeof S->root_nodes);
     for (int d = 1; d <= limits.depth && d < MAX_PLY - 1; ++d) {
         S->seldepth = 0;
-        int delta = 25, alpha = -INF, beta = INF;
+        int delta = ASP_DELTA, alpha = -INF, beta = INF;
         if (d >= 4) { alpha = std::max(prev_score - delta, -INF); beta = std::min(prev_score + delta, INF); }
         int score;
         for (;;) {  // re-search with a wider window until the score lands inside it
