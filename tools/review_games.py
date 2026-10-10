@@ -51,7 +51,7 @@ def main():
         nodes = list(g.mainline())
         if len(nodes) < 4: continue  # aborted
         gid, base = h["Site"].rsplit("/", 1)[-1], int(h.get("TimeControl", "0+0").split("+")[0] or 0)
-        board, (cur, best), best_wp = g.board(), ev(g.board(), us), 0
+        board, (cur, best), best_wp, last_clock = g.board(), ev(g.board(), us), 0, None
         for n in nodes:
             mover, fen, san = board.turn, board.fen(), board.san(n.move)
             best_san = board.san(best) if best else ""
@@ -59,7 +59,7 @@ def main():
             nxt, nxt_best = ev(board, us)
             best_wp = max(best_wp, win_pct(cur))
             if mover == us:
-                clock = n.clock()
+                clock = last_clock = n.clock()
                 pieces = sum(1 for p in board.piece_map().values() if p.piece_type not in (chess.PAWN, chess.KING))
                 moves.append({"game": gid, "ply": board.ply(), "fen": fen, "move": san, "best": best_san,
                               "cp_before": cur, "cp_after": nxt, "drop": round(win_pct(cur) - win_pct(nxt), 1),
@@ -71,12 +71,12 @@ def main():
         score = 0.5 if res == "1/2-1/2" else 1.0 if (res == "1-0") == (us == chess.WHITE) else 0.0
         rows.append({"game": gid, "color": "white" if us else "black", "opponent": h["Black" if us else "White"],
                      "elo": h.get("BlackElo" if us else "WhiteElo"), "tc": h.get("TimeControl"), "score": score,
-                     "termination": h.get("Termination", ""), "best_win_pct": round(best_wp)})
-    # The current engine replays every blunder at a fixed time; Stockfish grades its new choice.
+                     "termination": h.get("Termination", ""), "best_win_pct": round(best_wp), "last_clock": last_clock})
+    # The current engine replays every mistake and blunder at a fixed time; Stockfish grades its new choice.
     eng = chess.engine.SimpleEngine.popen_uci(a.engine); eng.configure({"Threads": 1, "Hash": 64})
-    blunders = [m for m in moves if m["drop"] >= 20]
+    blunders, bad = [m for m in moves if m["drop"] >= 20], [m for m in moves if m["drop"] >= 10]
     open_epd = []
-    for m in blunders:
+    for m in bad:
         board = chess.Board(m["fen"]); us = board.turn
         mv = eng.play(board, chess.engine.Limit(time=a.movetime)).move
         m["now"] = board.san(mv)
@@ -99,21 +99,25 @@ def main():
     for ph in ("opening", "middlegame", "endgame"):
         rep.append(f"| {ph} | {sum(m['phase'] == ph for m in blunders)} | {sum(m['phase'] == ph for m in mist)} |")
     rep.append(f"| in time trouble | {sum(m['time_trouble'] for m in blunders)} | {sum(m['time_trouble'] for m in mist)} |")
-    rep += ["", f"**Still wrong on the current engine: {len(open_epd)} of {len(blunders)} blunders** "
+    rep += ["", f"**Still wrong on the current engine: {len(open_epd)} of {len(bad)} mistakes and blunders** "
             f"({a.movetime:g} s, 1 thread; list in open.epd)", ""]
     link = lambda m: f"[{m['game']}#{m['ply']}](https://lichess.org/{m['game']}#{m['ply']})"
-    if blunders:
+    if bad:
         rep += ["| Position | Phase | Clock | Played | Stockfish | Drop | Now plays | Now drop |", "|---|---|---|---|---|---|---|---|"]
-        for m in sorted(blunders, key=lambda m: -m["drop"]):
+        for m in sorted(bad, key=lambda m: -m["drop"]):
             rep.append(f"| {link(m)} | {m['phase']} | {m['clock'] if m['clock'] is not None else '?'} | {m['move']} | "
                        f"{m['best']} | {m['drop']:.0f} | {m['now']} | {m['now_drop']:.0f} |")
-    bad = [r for r in rows if r["score"] < 1 and r["best_win_pct"] >= 85]
-    timeouts = [r for r in rows if r["score"] < 1 and "Time" in r["termination"]]
-    rep += ["", f"**Won positions not won** (win chance ≥ 85 % at some point): {len(bad)}"]
+    spoiled = [r for r in rows if r["score"] < 1 and r["best_win_pct"] >= 85]
+    timeouts = [r for r in rows if r["score"] == 0 and "Time" in r["termination"]]  # a draw on time = their flag
+    rep += ["", f"**Won positions not won** (win chance ≥ 85 % at some point): {len(spoiled)}"]
     rep += [f"- [{r['game']}](https://lichess.org/{r['game']}) vs {r['opponent']} ({r['elo']}), {r['tc']}, "
-            f"score {r['score']:g}, peak {r['best_win_pct']} %" for r in bad]
-    rep += ["", f"**Lost or drawn on time:** {len(timeouts)}"]
-    rep += [f"- [{r['game']}](https://lichess.org/{r['game']}) vs {r['opponent']}, {r['tc']}" for r in timeouts]
+            f"score {r['score']:g}, peak {r['best_win_pct']} %" for r in spoiled]
+    rep += ["", f"**Lost on time:** {len(timeouts)}"]
+    # Flagging with time to spare means the moves never reached Lichess (network or bot process), not slow play.
+    rep += [f"- [{r['game']}](https://lichess.org/{r['game']}) vs {r['opponent']}, {r['tc']}, our clock before the flag "
+            + (f"{r['last_clock']:.0f} s" if r['last_clock'] is not None else "?")
+            + (" (connection drop)" if (r['last_clock'] or 0) > 10 else " (clock ran out)")
+            for r in timeouts]
     (out / "report.md").write_text("\n".join(rep) + "\n")
     print("\n".join(rep))
 
