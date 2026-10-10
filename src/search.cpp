@@ -68,20 +68,20 @@ struct TuneReg { TuneReg(const char* n, int* v, int lo, int hi) { tunables[n_tun
 #else
 #define TUNABLE(name, value, lo, hi) constexpr int name = value;
 #endif
-TUNABLE(RFP_MARGIN, 80, 40, 160)      // reverse futility pruning: centipawns per ply of depth
-TUNABLE(RFP_DEPTH, 8, 4, 12)
-TUNABLE(RAZOR_MARGIN, 250, 100, 500)  // razoring: centipawns per ply of depth
-TUNABLE(NMP_BASE, 3, 2, 5)            // null-move reduction NMP_BASE + depth / NMP_DIV
-TUNABLE(NMP_DIV, 6, 3, 12)
-TUNABLE(SE_MARGIN, 16, 6, 48)         // singular-extension margin in eighths of a centipawn per ply (16: 2 * depth)
-TUNABLE(FUT_BASE, 100, 40, 200)       // futility pruning margin FUT_BASE + FUT_MARGIN * depth
-TUNABLE(FUT_MARGIN, 100, 40, 200)
-TUNABLE(SEE_CAPTURE, 20, 8, 40)       // SEE pruning thresholds -SEE_CAPTURE * depth^2 (captures), -SEE_QUIET * depth
-TUNABLE(SEE_QUIET, 50, 20, 100)
-TUNABLE(LMR_BASE, 75, 0, 150)         // LMR table LMR_BASE / 100 + ln(depth) ln(move number) / (LMR_DIV / 100)
-TUNABLE(LMR_DIV, 225, 150, 350)
-TUNABLE(HIST_MAX, 1200, 400, 2400)    // history bonus min(depth^2, HIST_MAX)
-TUNABLE(ASP_DELTA, 25, 10, 60)        // first aspiration window half-width, centipawns
+TUNABLE(RFP_MARGIN, 78, 40, 160)      // reverse futility pruning: centipawns per ply of depth
+TUNABLE(RFP_DEPTH, 7, 4, 12)
+TUNABLE(RAZOR_MARGIN, 249, 100, 500)  // razoring: centipawns per ply of depth
+TUNABLE(NMP_BASE, 4, 2, 5)            // null-move reduction NMP_BASE + depth / NMP_DIV
+TUNABLE(NMP_DIV, 5, 3, 12)
+TUNABLE(SE_MARGIN, 11, 6, 48)         // singular-extension margin in eighths of a centipawn per ply (16: 2 * depth)
+TUNABLE(FUT_BASE, 96, 40, 200)       // futility pruning margin FUT_BASE + FUT_MARGIN * depth
+TUNABLE(FUT_MARGIN, 91, 40, 200)
+TUNABLE(SEE_CAPTURE, 19, 8, 40)       // SEE pruning thresholds -SEE_CAPTURE * depth^2 (captures), -SEE_QUIET * depth
+TUNABLE(SEE_QUIET, 46, 20, 100)
+TUNABLE(LMR_BASE, 73, 0, 150)         // LMR table LMR_BASE / 100 + ln(depth) ln(move number) / (LMR_DIV / 100)
+TUNABLE(LMR_DIV, 215, 150, 350)
+TUNABLE(HIST_MAX, 1102, 400, 2400)    // history bonus min(depth^2, HIST_MAX)
+TUNABLE(ASP_DELTA, 22, 10, 60)        // first aspiration window half-width, centipawns
 TUNABLE(LMP_BASE, 3, 1, 8)            // late move pruning: quiet moves after LMP_BASE + depth^2 moves skipped (depth <= 8)
 std::atomic<bool> g_helpers_stop{false};  // set when the main thread has finished: helpers stop too
 
