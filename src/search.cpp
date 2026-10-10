@@ -55,6 +55,7 @@ struct Searcher {
     int eval_stack[MAX_PLY + 1];   // static eval per ply (-INF when in check)
     int16_t corr[2][CORRHIST_SIZE];  // pawn-structure correction history, scaled by 256
     int16_t cont[CH][CH];            // continuation history [previous move][this move], each as piece * 64 + to
+    int16_t capt[12][64][6];         // capture history [moving piece][to][captured type; KING = promotion, no capture]
     int moved[MAX_PLY];              // the move made at each ply as piece * 64 + to; -1 for a null move
 };
 // Static storage: these arrays must not live on the small ESP32 task stack. One searcher per thread; S is this
@@ -171,6 +172,11 @@ int16_t* cont_of(int ply, int back) {
 
 int move_key(Move m) { return S->board.mailbox[from_sq(m)] * 64 + to_sq(m); }
 
+int16_t& capt_of(Move m) {  // call with the board at the node, before make()
+    const int victim = flags_of(m) == EP_CAPTURE ? PAWN : is_capture(m) ? int(type_of(S->board.mailbox[to_sq(m)])) : KING;
+    return S->capt[S->board.mailbox[from_sq(m)]][to_sq(m)][victim];
+}
+
 // Captures and promotions are scored as if SEE >= 0 and marked pending: pick() runs SEE only when such a move would
 // be chosen, and demotes it to the losing-capture band if it fails. Same order as scoring SEE up front, fewer SEE calls.
 void score_moves(const MoveList& list, int16_t* scores, bool* see_pending, Move tt_move, int ply, Bitboard threats) {
@@ -179,11 +185,11 @@ void score_moves(const MoveList& list, int16_t* scores, bool* see_pending, Move 
         const Move m = list.moves[i];
         see_pending[i] = false;
         if (m == tt_move) scores[i] = 30000;
-        else if (is_capture(m) || is_promo(m)) {  // MVV-LVA
+        else if (is_capture(m) || is_promo(m)) {  // MVV-LVA; capture history (+-512) can overrule one victim step
             int victim = flags_of(m) == EP_CAPTURE ? PAWN : is_capture(m) ? int(type_of(S->board.mailbox[to_sq(m)])) : 0;
             int attacker = type_of(S->board.mailbox[from_sq(m)]);
             int promo = is_promo(m) && promo_type(m) == QUEEN ? 64 : 0;
-            scores[i] = int16_t(20000 + victim * 8 - attacker + promo);  // losing captures (SEE < 0) go after quiets: pick()
+            scores[i] = int16_t(20000 + victim * 256 - attacker + promo + capt_of(m) / 32);  // losing captures (SEE < 0) go after quiets: pick()
             see_pending[i] = true;
         } else if (m == S->killers[ply][0]) scores[i] = 19000;
         else if (m == S->killers[ply][1]) scores[i] = 18999;
@@ -357,8 +363,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
     bool see_pending[MAX_MOVES];
     const Bitboard threats = attacked_by(S->board, ~S->board.stm);
     score_moves(list, scores, see_pending, tt_move, ply, threats);
-    Move quiets[64];
-    int n_quiets = 0, legal = 0, best = -INF;
+    Move quiets[64], captures[32];
+    int n_quiets = 0, n_captures = 0, legal = 0, best = -INF;
     const int alpha0 = alpha;
     Move best_move = NO_MOVE;
     for (int i = 0; i < list.size; ++i) {
@@ -406,17 +412,19 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
                 for (int j = ply + 1; j < S->pv_len[ply + 1]; ++j) S->pv[ply][j] = S->pv[ply + 1][j];
                 S->pv_len[ply] = std::max(S->pv_len[ply + 1], ply + 1);
                 if (score >= beta) {
+                    const int bonus = std::min(depth * depth, HIST_MAX);
                     if (quiet) {
                         if (S->killers[ply][0] != m) { S->killers[ply][1] = S->killers[ply][0]; S->killers[ply][0] = m; }
-                        const int bonus = std::min(depth * depth, HIST_MAX);
                         update_history(m, bonus, threats, ply);
                         for (int q = 0; q < n_quiets; ++q) update_history(quiets[q], -bonus, threats, ply);
-                    }
+                    } else gravity(capt_of(m), bonus);
+                    for (int q = 0; q < n_captures; ++q) gravity(capt_of(captures[q]), -bonus);
                     break;
                 }
             }
         }
         if (quiet && n_quiets < 64) quiets[n_quiets++] = m;
+        else if (!quiet && n_captures < 32) captures[n_captures++] = m;
     }
     if (legal == 0) return excluded != NO_MOVE ? alpha : in_check ? -MATE + ply : 0;
     // Learn from the search result unless the bound says nothing about the eval's error.
@@ -492,6 +500,7 @@ void clear_search_state() {
         std::memset(t.killers, 0, sizeof t.killers);
         std::memset(t.corr, 0, sizeof t.corr);
         std::memset(t.cont, 0, sizeof t.cont);
+        std::memset(t.capt, 0, sizeof t.capt);
     }
 }
 
