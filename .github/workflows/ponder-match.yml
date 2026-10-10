@@ -9,6 +9,7 @@ on:
       tc: {description: "time control", default: "10+0.1"}
       rounds: {description: "game pairs per job", default: "100"}
       jobs: {description: "JSON list of job numbers", default: "[1,2,3,4,5,6,7,8]"}
+      concurrency: {description: "games at once per job (1 = no CPU contention between the two games)", default: "2"}
 
 permissions:
   contents: read
@@ -43,12 +44,13 @@ jobs:
           make -C dev -j4 -s CXX=clang++ EXE=engine && dev/engine bench | tail -1
       - name: Play games
         run: |
-          # Two games at once on 4 vCPUs: a pondering engine keeps one core busy on its opponent's time.
+          # Default two games at once on 4 vCPUs: a pondering engine keeps one core busy on its opponent's time. That can
+          # starve the non-pondering engine on shared cores, so concurrency 1 gives the uncontended measurement.
           $CC -engine cmd=dev/engine name=ponder ponder -engine cmd=dev/engine name=noponder \
             -each proto=uci tc=${{ inputs.tc }} option.Hash=16 \
             -openings file=UHO_Lichess_4852_v1.epd format=epd order=random \
             -srand $(( ${{ matrix.job }} * 7919 )) -games 2 -rounds ${{ inputs.rounds }} -repeat \
-            -concurrency 2 -recover -pgnout games.pgn > match.log 2>&1 || true
+            -concurrency ${{ inputs.concurrency }} -recover -pgnout games.pgn > match.log 2>&1 || true
           tail -5 match.log
           python3 - <<'EOF'
           import json, re
