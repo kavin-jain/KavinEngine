@@ -4,7 +4,7 @@ Each batch is N parallel jobs of a fixed size (well under GitHub's 6-hour job li
 in results/sprt/<id>-cloud/state.json, so an interrupted run resumes where it stopped.
 Usage: tools/cloud_sprt.py ID DEV_REF BASE_REF [--tc 8+0.08] [--elo0 0] [--elo1 5] [--jobs 10] [--rounds 100]
                            [--max-games 20000]   (both refs must be pushed to GitHub)"""
-import argparse, json, pathlib, subprocess, sys, time
+import argparse, json, pathlib, shutil, subprocess, sys, time
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from sprt_math import bounds, elo, llr
@@ -75,10 +75,11 @@ def main():
         while (gh_json("run", "view", str(rid), "--json", "status") or {}).get("status") != "completed":
             time.sleep(60)
         bdir = out / f"b{b}"
-        for _ in range(5):  # artifact downloads fail transiently, like other gh calls
+        for _ in range(5):  # artifact downloads fail transiently; gh stops at the first error and won't overwrite
+            shutil.rmtree(bdir, ignore_errors=True)  # what it already extracted, so every try starts clean
             subprocess.run(["gh", "run", "download", str(rid), "-D", str(bdir)], check=False, capture_output=True)
             results = sorted(bdir.glob("*/result.json"))
-            if results: break
+            if len(results) == a.jobs: break
             time.sleep(60)
         st["failed_jobs"] += a.jobs - len(results)
         if not results:
