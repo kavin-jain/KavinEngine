@@ -12,8 +12,8 @@ ESP32-S3 microcontroller.
 |---|---|
 | **Strength** | **3495 ± 11** on the CCRL Blitz scale: 1,536 games against 8 engines from 7 families ([below](#how-strong-is-it)); 3449 ± 11 the day before |
 | **Beats** | Ethereal 12.75 (59.4 %), Halogen 11 (61.2 %), Stash 35/37; Koivisto 7.0 nearly even (45.8 %) |
-| **Lichess** | blitz 2674 after 211 games, rapid 2844 after 53 (2026-10-10), on a 2-core home server plus a free Oracle VM |
-| **Tested** | 64 logged tests, **417,392 games**, mostly on up to 40 parallel cloud machines; failures are logged too ([docs/sprt-log.md](docs/sprt-log.md)) |
+| **Lichess** | blitz 2774 after 278 games, rapid 2814 after 81 (2026-10-11), on a free Oracle VM (2 ARM cores) |
+| **Tested** | 65 logged tests, **423,792 games**, mostly on up to 40 parallel cloud machines; failures are logged too ([docs/sprt-log.md](docs/sprt-log.md)) |
 | **Gained in one day** | 3288 → 3377 → **3463** against the same Stash anchors (2026-10-08): speed-ups, then a net trained on Leela Chess Zero data |
 | **Built by** | Kavin Jain, 18, Udaipur, India ([about](#about-and-honesty)) |
 
@@ -28,7 +28,7 @@ ESP32-S3 microcontroller.
 ```mermaid
 flowchart LR
     D["Training data<br/>1.09B Leela positions<br/>+ own self-play games"] --> T["bullet trainer (Rust)<br/>Kaggle GPUs"]
-    T --> N["NNUE net<br/>(768×10 → 256)×2 → 8"]
+    T --> N["NNUE net<br/>(768×10 → 512)×2 → 8"]
     N --> E["Engine (C++17)<br/>search + evaluation"]
     E --> S["Cloud SPRT tests<br/>40 machines, every change"]
     S -- "only proven gains merge" --> E
@@ -39,7 +39,7 @@ flowchart LR
   transposition table, null-move pruning, late-move reductions, reverse futility and futility pruning, static-exchange
   (SEE) pruning, internal iterative reductions, correction history, check extensions and a quiescence search.
 - **Evaluation** (`src/nnue.cpp`): an efficiently updatable neural network. 768 inputs × 10 mirrored king buckets feed a
-  256-neuron layer per side, with SCReLU activation and 8 output buckets by material. Integer-quantised, updated
+  512-neuron layer per side, with SCReLU activation and 8 output buckets by material. Integer-quantised, updated
   incrementally move by move, with a refresh cache ("Finny tables") when a king changes bucket.
 - **Time management:** spends more time when the best move keeps changing and less when it's stable and has taken most of
   the search; a configurable clock reserve keeps an online bot safe from network drops.
@@ -80,6 +80,7 @@ the test stops as soon as the evidence is strong enough either way.
 | Reverse futility pruning | +110.7 ± 20.0 |
 | Aspiration windows | +71.2 ± 16.1 |
 | Net trained from scratch on 547M Leela Chess Zero positions | +65.0 ± 10.9 |
+| 512-wide net on 2.19B Leela positions, vs the 256 default (+58.9 ± 4.6 at the longer 30+0.3) | +58.5 ± 7.9 |
 | Self-play fine-tune of the net | +54.5 ± 12.0 |
 | Singular extensions with multi-cut | +42.6 ± 9.7 |
 | Futility pruning | +37.2 ± 11.3 |
@@ -122,16 +123,20 @@ best width lies for a given device ([docs/research/2026-10-08-nnue-scaling-study
   fewer positions per second. Modelled as strength = quality(N) + 72 · log2(speed), the optimum on a desktop is
   **N ≈ 400** (245–663 within 5 Elo). On a microcontroller the optimum is predicted to be smaller; that gets measured
   on the board.
+- Retested with 2× the data (2.19B positions, 2026-10-11): a 512-wide net beat the 256 default by **+58.5 ± 7.9**
+  (+58.9 ± 4.6 at 30+0.3) while searching 16 % fewer positions per second, and a 256 net from the same run gained
+  only +2.5 ± 2.7. The earlier loss looks data-limited: the wider net needs more positions to pay for its speed.
 
 ## The Lichess bot
 
-[@KavinEngine](https://lichess.org/@/KavinEngine) runs on a home server (Intel i3, 2 cores) through
+[@KavinEngine](https://lichess.org/@/KavinEngine) runs on a free Oracle Cloud VM (2 ARM cores, a datacenter link) through
 [lichess-bot](https://github.com/lichess-bot-devs/lichess-bot):
 
-- 3 search threads, one game at a time: strength over game count.
+- 2 search threads, one game at a time: strength over game count.
 - Opening book (Cerebellum Light) and Syzygy endgame tablebases, read by lichess-bot, not by the engine. The CCRL-scale
   rating above is measured without either.
-- A 30-second clock reserve, so a home Wi-Fi drop can't lose a game on time.
+- A 15-second clock reserve against network lag. It moved off a home server on 2026-10-11, after home Wi-Fi drops
+  flagged 16 of 60 games.
 - A Telegram bot reports its games every morning and can run a Stockfish post-mortem of any game on request
   ([tools/bot_ops.py](tools/bot_ops.py)).
 
@@ -141,7 +146,7 @@ best width lies for a given device ([docs/research/2026-10-08-nnue-scaling-study
 |---|---|
 | Engine (UCI, any GUI or lichess-bot) | `make` → `./engine` |
 | Tests | `make test` |
-| Bench signature | `./engine bench` → `2250713` nodes |
+| Bench signature | `./engine bench` → `2197190` nodes |
 | ESP32-S3 | `cd esp32 && pio run -e s3 -t upload`, then UCI over USB: `python tools/uci_bridge.py /dev/cu.usbmodemXXXX` |
 
 ## Layout
@@ -164,10 +169,11 @@ games or logs that back it.
 
 Credits, data and licences:
 
-- **Default net `nets/leela2-256-l240.bin`:** trained from scratch on 1.09B positions of Leela Chess Zero training data, as
+- **Default net `nets/leela4-512-l400.bin`:** trained from scratch on 2.19B positions of Leela Chess Zero training data, as
   converted in [linrock/bullet-training-data](https://huggingface.co/datasets/linrock/bullet-training-data). Lc0 training
   data is under the **Open Database License (ODbL)**, and this net is a Produced Work from it. Scores were rescaled to the
-  engine's centipawns (`EVAL_SCALE` = 1106.5, calibrated against an earlier net).
+  engine's centipawns (`EVAL_SCALE` = 1107.7). The previous default, `nets/leela2-256-l240.bin`, used 1.09B positions
+  of the same data.
 - **Earlier nets:** the Lichess evaluation database (CC0, Stockfish evaluations) and the engine's own self-play games.
 - **First evaluation:** PeSTO tables by Ronald Friederich, credited in `src/pesto_tables.h`.
 - **Tools:** [bullet](https://github.com/jw1912/bullet) (training), [fastchess](https://github.com/Disservin/fastchess)
