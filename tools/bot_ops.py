@@ -18,6 +18,10 @@ HERMES = HOME / ".local/bin/hermes"
 SYZYGY = HOME / "Projects/lichess-bot/engines/syzygy"
 STATE = HOME / ".cache/kavinengine-bot/state.json"
 ANALYZE = pathlib.Path(__file__).with_name("analyze_game.py")
+BOT_HOST = "oracle"  # lichess-bot's machine: the Oracle VM since 2026-10-11 (lynxS's home link drops); "" = this one
+
+
+def on_bot_host(cmd): return (["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", BOT_HOST] if BOT_HOST else []) + cmd
 
 
 def api(path, ndjson=False):
@@ -82,7 +86,7 @@ def score_line(gs):
 
 
 def cmd_status():
-    online = subprocess.run(["systemctl", "--user", "is-active", "lichess-bot"], capture_output=True, text=True).stdout.strip()
+    online = subprocess.run(on_bot_host(["systemctl", "--user", "is-active", "lichess-bot"]), capture_output=True, text=True).stdout.strip()
     st = api(f"/api/users/status?ids={BOT}&withGameIds=true")[0]
     today = games_since((time.time() - time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1))) / 3600)
     lines = [f"♟ {BOT}: service {online}, Lichess {'online' if st.get('online') else 'OFFLINE'}",
@@ -162,8 +166,8 @@ def bot_cap_until():
     lila's BotLimit counts every bot-vs-bot game START (aborted ones too) in a 24 h window that opens at the first
     game, so counting exported games misses it (99 vs 100 on 2026-10-10). The error is rich-wrapped over many lines,
     with the source column (matchmaking.py:129) inside the message."""
-    out = subprocess.run(["journalctl", "--user", "-u", "lichess-bot", "--since", "-25h", "-o", "json",
-                          "--output-fields=MESSAGE"], capture_output=True, text=True).stdout
+    out = subprocess.run(on_bot_host(["journalctl", "--user", "-u", "lichess-bot", "--since", "-25h", "-o", "json",
+                                      "--output-fields=MESSAGE"]), capture_output=True, text=True).stdout
     entries = [json.loads(l) for l in out.splitlines()]
     starts, text, pos = [], [], 0
     for e in entries:
@@ -208,7 +212,7 @@ def cmd_watchdog():
         wd["cap_reported"] = False
     if reason and now - wd.get("last_restart", 0) > RESTART_GAP:
         wd["last_restart"] = now
-        ok = subprocess.run(["systemctl", "--user", "restart", "lichess-bot.service"]).returncode == 0
+        ok = subprocess.run(on_bot_host(["systemctl", "--user", "restart", "lichess-bot.service"])).returncode == 0
         msg = f"⚠️ Watchdog: {BOT} was {reason}; lichess-bot {'restarted' if ok else 'restart FAILED'}."
         subprocess.run([str(HERMES), "send", "-t", "telegram", "-q"], input=msg, text=True)
         print(msg)
