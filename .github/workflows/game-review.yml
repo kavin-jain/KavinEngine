@@ -4,7 +4,7 @@
 name: game-review
 on:
   schedule:
-    - cron: "47 23 * * *"  # 05:17 IST
+    - cron: "17 21 * * *"  # 02:47 IST; GitHub starts scheduled runs up to ~3 h late, the review must be in by ~07:45 IST
   workflow_dispatch:
     inputs:
       hours: {description: "review the games of the last N hours", default: "25"}
