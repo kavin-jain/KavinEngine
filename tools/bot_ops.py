@@ -206,8 +206,8 @@ def cmd_watchdog():
                 subprocess.run([str(HERMES), "send", "-t", "telegram", "-q"], text=True,
                                input=f"♟ {BOT} reached Lichess's 100 bot-vs-bot games for the day; bot games resume at "
                                      f"{time.strftime('%H:%M', time.localtime(cap))} (humans can still challenge). No restart needed.")
-        else:
-            reason = f"idle for {idle / 60:.0f} min"
+        elif now - cap > IDLE_LIMIT:  # matchmaking gets IDLE_LIMIT after the cap too (2026-10-12: a restart 2.5 min
+            reason = f"idle for {idle / 60:.0f} min"  # after it ended set off 34 min of 429s on the event stream)
     if status.get("playing") or idle < IDLE_LIMIT:
         wd["cap_reported"] = False
     if reason and now - wd.get("last_restart", 0) > RESTART_GAP:
