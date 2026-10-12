@@ -45,7 +45,13 @@ def switch_state():
     return out[0], out[1], out[2]
 
 
-def tell(msg): subprocess.run([str(HERMES), "send", "-t", "telegram", "-q"], input=msg, text=True)
+def tell(msg):  # Telegram via Hermes; retried (lynxS's Wi-Fi drops) and logged, since nobody sees a failed send
+    for attempt in range(3):
+        r = subprocess.run([str(HERMES), "send", "-t", "telegram", "-q"], input=msg, text=True, capture_output=True)
+        if r.returncode == 0:
+            return print(f"telegram sent: {msg.splitlines()[-1][:80]}")
+        time.sleep(20)
+    print(f"telegram send FAILED (exit {r.returncode}): {(r.stderr or r.stdout).strip()[-300:]}")
 
 
 def lichess_online():
