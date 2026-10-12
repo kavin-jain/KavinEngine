@@ -74,6 +74,13 @@ def main():
             time.sleep(1)
         return
     dry = "--dry-run" in args
+    if not dry:
+        from bot_ops import switch_state  # same folder
+        try:
+            if switch_state()[0] == "off":
+                return print(f"{time.strftime('%F %T')} bot switched off (/chessbotoff): no arenas joined")
+        except Exception as e:
+            print(f"{time.strftime('%F %T')} on/off switch unknown ({e}); joining as before")
     account = call("/api/account")
     if "id" not in account:  # network outage or API error (a KeyError here killed the 2026-10-09 19:34 and 19:52 runs)
         sys.exit(f"{time.strftime('%F %T')} account lookup failed: {account.get('error')}")
