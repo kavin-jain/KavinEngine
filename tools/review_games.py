@@ -82,7 +82,7 @@ def main():
         m["now"] = board.san(mv)
         board.push(mv)
         m["now_drop"] = round(win_pct(m["cp_before"]) - win_pct(ev(board, us)[0]), 1)
-        if m["now_drop"] >= 10:
+        if m["now_drop"] >= 10 and m["now"] != m["best"]:  # Stockfish's own move can't be wrong: the drop is search noise
             b = chess.Board(m["fen"])
             open_epd.append(b.epd(bm=b.parse_san(m["best"]), id=f"{m['game']}/{m['ply']}") if m["best"] else b.epd())
     eng.quit(); sf.quit()

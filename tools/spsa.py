@@ -12,7 +12,7 @@ per game pair) sets the gain schedules: c_k = c / (k+1)^0.101, a_k = a / (A+k+1)
       make TUNE=1; the parameters, defaults and ranges come from that engine's UCI options.
   tools/spsa.py chain ...   on a runner (spsa.yml): one chain, writes result.json after every step.
 """
-import argparse, json, math, pathlib, random, re, subprocess, sys, time
+import argparse, json, math, pathlib, random, re, shutil, subprocess, sys, time
 
 ALPHA, GAMMA, R_END = 0.602, 0.101, 0.002
 
@@ -109,10 +109,11 @@ def run(a):
         while json.loads(gh("run", "view", str(rid), "--json", "status") or "{}").get("status") != "completed":
             time.sleep(60)
         rdir = out / f"r{r}"
-        for _ in range(5):
+        for _ in range(5):  # gh stops at the first failed artifact and won't overwrite: retry from a clean folder
+            shutil.rmtree(rdir, ignore_errors=True)
             subprocess.run(["gh", "run", "download", str(rid), "-D", str(rdir)], capture_output=True)
             results = [json.loads(f.read_text()) for f in sorted(rdir.glob("*/result.json"))]
-            if results: break
+            if len(results) == a.chains: break
             time.sleep(60)
         results = [x for x in results if x["pairs"]]
         if not results: sys.exit(f"round {r}: no chain finished a step; see gh run view {rid} --log-failed")
