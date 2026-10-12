@@ -8,11 +8,11 @@ PY = pathlib.Path.home() / "Projects/lichess-bot/venv/bin/python"  # has python-
 ENV = {k: v for k, v in os.environ.items() if k in ("HOME", "USER", "LANG", "PATH", "XDG_RUNTIME_DIR")}  # no API keys
 COMMANDS = {  # Telegram shows the hyphen as an underscore: /chessbot_on
     "chessbot-on": ("on", "Turn the chess bot ON"),
-    "chessbot-off": ("off", "Turn the chess bot OFF (plays out its game first)"),
+    "chessbot-off": ("off", "Turn the chess bot OFF (finishes game)"),
     "chess": ("status", "Chess bot status: on/off, game, ratings"),
     "chessreport": ("report", "Chess bot: last 24 hours"),
     "lastgame": ("last", "Chess bot: last finished game"),
-    "analyze": ("analyze", "Stockfish review of the last game (or /analyze ID)"),
+    "analyze": ("analyze", "Stockfish review of the last game"),
 }
 
 
