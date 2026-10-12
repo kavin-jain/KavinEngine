@@ -1,0 +1,3 @@
+name: kavinengine
+version: 1.0.0
+description: "KavinEngine Lichess bot commands in the Telegram / menu: on/off switch, status, report, last game, analysis. Each runs tools/bot_ops.py directly (no LLM)."

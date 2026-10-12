@@ -78,7 +78,7 @@ def main():
         from bot_ops import switch_state  # same folder
         try:
             if switch_state()[0] == "off":
-                return print(f"{time.strftime('%F %T')} bot switched off (/chessbotoff): no arenas joined")
+                return print(f"{time.strftime('%F %T')} bot switched off (/chessbot_off): no arenas joined")
         except Exception as e:
             print(f"{time.strftime('%F %T')} on/off switch unknown ({e}); joining as before")
     account = call("/api/account")

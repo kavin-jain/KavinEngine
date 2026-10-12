@@ -5,11 +5,12 @@ Plain-text output, short enough for one Telegram message. Runs with lichess-bot'
   bot_ops.py report [HOURS]    the last HOURS (24): games, W/D/L per speed, time losses, rating change, losses
   bot_ops.py last              the last finished game
   bot_ops.py analyze [ID]      Stockfish 19 analysis of game ID (default: last finished), sent to Telegram when done
-  bot_ops.py on | off          switch the bot on / off (Telegram /chessboton, /chessbotoff); off plays the running game out
+  bot_ops.py on | off          switch the bot on / off (Telegram /chessbot_on, /chessbot_off); off plays the running game out;
+                               every switch is confirmed on Telegram once it has really happened (bot_ops.py notify)
   bot_ops.py watchdog          (systemd timer, every 5 min) restart lichess-bot and tell Telegram if the bot is offline
                                or has been idle > 20 min without a reason (at most one restart per 30 min)
 """
-import json, pathlib, re, subprocess, sys, time, urllib.request
+import json, os, pathlib, re, subprocess, sys, time, urllib.request
 
 BOT = "KavinEngine"
 HOME = pathlib.Path.home()
@@ -35,12 +36,44 @@ def host_sh(script, timeout=20):  # a shell snippet on BOT_HOST, run in its home
 
 
 def switch_state():
-    """('on' | 'off', lichess-bot.service state) on BOT_HOST; raises when the host can't be reached."""
-    r = host_sh(f"test -e {OFF_FLAG} && echo off || echo on; systemctl --user is-active lichess-bot")
+    """('on' | 'off', lichess-bot.service state, its main PID) on BOT_HOST; raises when the host can't be reached."""
+    r = host_sh(f"test -e {OFF_FLAG} && echo off || echo on; systemctl --user is-active lichess-bot; "
+                "systemctl --user show -p MainPID --value lichess-bot")
     out = r.stdout.split()
-    if r.returncode == 255 or len(out) != 2:
+    if r.returncode == 255 or len(out) != 3:
         raise RuntimeError(f"can't reach {BOT_HOST}: {(r.stderr or r.stdout).strip()[-200:]}")
-    return out[0], out[1]
+    return out[0], out[1], out[2]
+
+
+def tell(msg): subprocess.run([str(HERMES), "send", "-t", "telegram", "-q"], input=msg, text=True)
+
+
+def lichess_online():
+    try: return bool(api(f"/api/users/status?ids={BOT}")[0].get("online"))
+    except Exception: return False
+
+
+def spawn_notify(kind, arg=""):
+    """Start `bot_ops.py notify KIND ARG` in its own systemd unit (outlives the Telegram command's 30-45 s and gateway
+    restarts); returns "" or a note that no confirmation will come."""
+    env = {**os.environ, "XDG_RUNTIME_DIR": os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"}
+    try:
+        subprocess.run(["systemd-run", "--user", "--collect", "--quiet", f"--unit=chessbot-{kind}-{int(time.time())}",
+                        sys.executable, str(pathlib.Path(__file__).resolve()), "notify", kind, arg or "-"],
+                       env=env, check=True, capture_output=True, text=True, timeout=15)
+        return ""
+    except Exception as e:
+        return f"\n(No confirmation message will follow: {getattr(e, 'stderr', '') or e}. Check /chess.)"
+
+
+def game_result(gid):  # "Last game: won vs X (2900), lichess.org/ID" for the off confirmation
+    if not gid: return ""
+    try:
+        g = api(f"/game/export/{gid}?moves=false")
+        res = {"W": "won", "D": "drew", "L": "lost", None: "unfinished"}[outcome(g)]
+        return f"Its last game: {res} vs {name(side(g)[1])}, lichess.org/{gid}\n"
+    except Exception:
+        return f"Its last game: lichess.org/{gid}\n"
 
 
 def wd_load(): return json.loads(WATCHDOG.read_text()) if WATCHDOG.exists() else {}
@@ -116,7 +149,7 @@ def cmd_status():
     online = subprocess.run(on_bot_host(["systemctl", "--user", "is-active", "lichess-bot"]), capture_output=True, text=True).stdout.strip()
     st = api(f"/api/users/status?ids={BOT}&withGameIds=true")[0]
     today = games_since((time.time() - time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1))) / 3600)
-    try: switched = ", switched OFF (/chessboton to resume)" if switch_state()[0] == "off" else ""
+    try: switched = ", switched OFF (/chessbot_on to turn it back on)" if switch_state()[0] == "off" else ""
     except Exception as e: switched = f", on/off switch unknown ({e})"
     lines = [f"♟ {BOT}: service {online}{switched}, Lichess {'online' if st.get('online') else 'OFFLINE'}",
              f"Now playing: lichess.org/{st['playingId']}" if st.get("playingId") else "Now: between games",
@@ -188,49 +221,82 @@ def cmd_analyze(gid=None, run=False):
 
 
 def cmd_switch(on):
-    """/chessboton, /chessbotoff (Hermes quick commands: 30 s cap). Off never forfeits a game: lichess-bot gets SIGINT
-    (config quit_after_all_games_finish: true), takes no new games, plays the running one out and exits; the flag then
-    keeps it off through crash restarts, reboots, the watchdog and arena joins. On removes the flag and starts the
-    service; if it is still finishing a game, systemd's own restart after that exit brings it straight back."""
+    """/chessbot_on, /chessbot_off (Hermes plugin tools/hermes-plugin). Off never forfeits a game: lichess-bot gets
+    SIGINT (config quit_after_all_games_finish: true), takes no new games, plays the running one out and exits; the
+    flag then keeps it off through crash restarts, reboots, the watchdog and arena joins. On removes the flag and
+    starts the service; if it is still finishing a game, systemd's restart after that exit brings it straight back.
+    The reply says what happened; when the switch needs longer than the command may run, `notify` confirms it."""
     try:
-        flag, svc = switch_state()
+        flag, svc, pid = switch_state()
         wd = wd_load()
         if on:
             if flag == "on" and svc == "active":
-                return print("♟ Chess bot is already ON.")
+                return print(f"♟ Chess bot is already ON ({BOT_HOST}). /chess for its status.")
+            draining = flag == "off" and svc == "active"
             r = host_sh(f"rm -f {OFF_FLAG} && systemctl --user start lichess-bot")
             if r.returncode:
-                return print(f"⚠️ Chess bot ON failed: {(r.stderr or r.stdout).strip()[-300:]}")
+                return print(f"⚠️ Chess bot ON failed on {BOT_HOST}: {(r.stderr or r.stdout).strip()[-300:]}")
             wd.update(last_active=time.time(), off_reported=False, off_idle=0)  # the watchdog's idle clock starts now
             wd_save(wd)
-            return print("♟ Chess bot ON: " + ("it comes back as soon as the game it is finishing ends." if flag == "off"
-                                               and svc == "active" else "looking for games again."))
+            if draining:
+                return print(f"♟ Chess bot ON: it is still finishing its last game on {BOT_HOST} and starts again "
+                             f"right after. I'll message you when it is back online." + spawn_notify("on", pid))
+            for _ in range(10):  # lichess-bot is usually online on Lichess 5-15 s after starting
+                time.sleep(2)
+                if lichess_online():
+                    return print(f"✅ Chess bot ON: online on Lichess from {BOT_HOST}, looking for games.")
+            return print(f"♟ Chess bot starting on {BOT_HOST}; I'll message you when it is online." + spawn_notify("on"))
         if flag == "off":
-            return print("♟ Chess bot is already OFF" + (", finishing its last game." if svc == "active" else
-                                                         f"; {BOT_HOST} is free. /chessboton to resume."))
+            return print("♟ Chess bot is already OFF" + (f": finishing its last game on {BOT_HOST}. You'll get a "
+                         f"message when {BOT_HOST} is free." if svc == "active" else f"; {BOT_HOST} is free. "
+                         "/chessbot_on to turn it back on."))
         r = host_sh(f"touch {OFF_FLAG}")
         if r.returncode:
-            return print(f"⚠️ Chess bot OFF failed: {(r.stderr or r.stdout).strip()[-300:]}")
+            return print(f"⚠️ Chess bot OFF failed on {BOT_HOST}: {(r.stderr or r.stdout).strip()[-300:]}")
         if svc != "active":
             wd.update(off_reported=True); wd_save(wd)
-            return print(f"♟ Chess bot OFF (the service wasn't running); {BOT_HOST} is free. /chessboton to resume.")
+            return print(f"✅ Chess bot OFF (it wasn't running); {BOT_HOST} is free. /chessbot_on to turn it back on.")
         try: game = api(f"/api/users/status?ids={BOT}&withGameIds=true")[0].get("playingId")
         except Exception: game = None
         r = host_sh("systemctl --user kill --kill-whom=main --signal=SIGINT lichess-bot")  # a 2nd SIGINT force-quits:
         if r.returncode:                                                                  # only ever sent once (flag)
             host_sh(f"rm -f {OFF_FLAG}")
             return print(f"⚠️ Chess bot OFF failed, bot left ON: {(r.stderr or r.stdout).strip()[-300:]}")
+        wd.update(off_at=time.time(), off_reported=False); wd_save(wd)
         if game:
-            return print(f"♟ Chess bot switching OFF: no new games; it finishes lichess.org/{game} first. "
-                         f"You'll get a message when {BOT_HOST} is free.")
+            return print(f"♟ Chess bot switching OFF: no new games. It plays out lichess.org/{game} on {BOT_HOST} "
+                         f"first; I'll message you the result when {BOT_HOST} is free." + spawn_notify("off", game))
         r = host_sh("for i in $(seq 15); do systemctl --user is-active -q lichess-bot || break; sleep 1; done; "
                     "systemctl --user is-active lichess-bot", timeout=25)
         if r.stdout.strip() == "active":
-            return print(f"♟ Chess bot switching OFF: no new games, shutting down. You'll get a message when {BOT_HOST} is free.")
+            return print(f"♟ Chess bot switching OFF: no new games, shutting down. I'll message you when {BOT_HOST} "
+                         "is free." + spawn_notify("off"))
         wd.update(off_reported=True); wd_save(wd)
-        print(f"♟ Chess bot OFF; {BOT_HOST} is free. /chessboton to resume.")
+        print(f"✅ Chess bot OFF; {BOT_HOST} is free. /chessbot_on to turn it back on.")
     except Exception as e:
         print(f"⚠️ Chess bot {'ON' if on else 'OFF'} failed: {e}")
+
+
+def cmd_notify(kind, arg):
+    """Background waiter started by cmd_switch: one Telegram message once the switch has really happened. Off waits
+    for the game to be played out (arg = game id); on waits for a new lichess-bot process (arg = the PID that was
+    finishing a game, or "-") to be online on Lichess. Gives up quietly if the switch is flipped back meanwhile."""
+    arg = "" if arg == "-" else arg
+    wait = 4 * 3600 if kind == "off" or arg else 300
+    deadline = time.time() + wait
+    while time.time() < deadline:
+        time.sleep(10)
+        try: flag, svc, pid = switch_state()
+        except Exception: continue  # host briefly unreachable: keep waiting
+        if flag != kind:
+            return  # switched back meanwhile; that command reports
+        if kind == "off" and svc != "active":
+            wd = wd_load(); wd["off_reported"] = True; wd_save(wd)
+            return tell(game_result(arg) + f"✅ Chess bot is OFF; {BOT_HOST} is free. /chessbot_on to turn it back on.")
+        if kind == "on" and svc == "active" and pid != arg and lichess_online():
+            return tell(f"✅ Chess bot is back ON: online on Lichess from {BOT_HOST}, looking for games.")
+    log = host_sh("journalctl --user -u lichess-bot -n 4 -o cat --no-pager").stdout.strip()[-400:]
+    tell(f"⚠️ Chess bot still not {kind.upper()} after {wait // 60} min on {BOT_HOST}. Check /chess.\n{log}")
 
 
 IDLE_LIMIT, RESTART_GAP = 20 * 60, 30 * 60
@@ -262,10 +328,10 @@ def cmd_watchdog():
     wd = wd_load()
     now = time.time()
     status = api(f"/api/users/status?ids={BOT}")[0]
-    try: flag, svc = switch_state()
+    try: flag, svc, _ = switch_state()
     except Exception: flag, svc = "on", "unknown"  # host unreachable: the restart below fails and says so
-    if flag == "off":  # /chessbotoff: no restarts, no idle or cap alerts; confirm once the server is free
-        wd["last_active"] = now  # after /chessboton, idle counts from the switch, not from the last game
+    if flag == "off":  # /chessbot_off: no restarts, no idle or cap alerts; confirm once the server is free
+        wd["last_active"] = now  # after /chessbot_on, idle counts from the switch, not from the last game
         if svc == "active" and not status.get("playing"):
             wd["off_idle"] = wd.get("off_idle", 0) + 1
             if wd["off_idle"] >= 2:  # its game is over but lichess-bot hasn't exited for 2 checks: nothing to lose
@@ -273,10 +339,9 @@ def cmd_watchdog():
                 svc = "stopped"
         else:
             wd["off_idle"] = 0
-        if svc != "active" and not wd.get("off_reported"):
-            wd["off_reported"] = True
-            subprocess.run([str(HERMES), "send", "-t", "telegram", "-q"], text=True,
-                           input=f"♟ Chess bot is OFF; {BOT_HOST} is free. Send /chessboton to resume.")
+        if svc != "active" and not wd.get("off_reported") and now - wd.get("off_at", 0) > 15 * 60:
+            wd["off_reported"] = True  # backstop: cmd_switch's reply or its notify job confirms first
+            tell(f"✅ Chess bot is OFF; {BOT_HOST} is free. /chessbot_on to turn it back on.")
         wd_save(wd)
         return print(f"{time.strftime('%F %T')} switched off, service {svc}, playing={bool(status.get('playing'))}")
     wd.update(off_reported=False, off_idle=0)
@@ -321,4 +386,5 @@ if __name__ == "__main__":
     elif cmd == "analyze": cmd_analyze(next((a for a in args if a != "--run"), None), "--run" in args)
     elif cmd == "watchdog": cmd_watchdog()
     elif cmd in ("on", "off"): cmd_switch(cmd == "on")
+    elif cmd == "notify": cmd_notify(*args[:2])
     else: sys.exit(__doc__)
