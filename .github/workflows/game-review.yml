@@ -5,6 +5,7 @@ name: game-review
 on:
   schedule:
     - cron: "17 21 * * *"  # 02:47 IST; GitHub starts scheduled runs up to ~3 h late, the review must be in by ~07:45 IST
+    - cron: "17 23 * * *"  # backup: GitHub dropped the 21:17 run on 2026-10-13; skipped when a review ran in the last 20 h
   workflow_dispatch:
     inputs:
       hours: {description: "review the games of the last N hours", default: "25"}
@@ -12,9 +13,24 @@ on:
 
 permissions:
   contents: read
+  actions: read  # the backup schedule's check
 
 jobs:
+  check:  # a scheduled run only reviews if no other review started in the last 20 h
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.c.outputs.skip }}
+    steps:
+      - id: c
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: |
+          since=$(date -u -d '-20 hours' +%FT%TZ)
+          n=$(gh run list -R "$GITHUB_REPOSITORY" -w game-review.yml -L 10 --json databaseId,createdAt,conclusion \
+              --jq "[.[] | select(.databaseId != $GITHUB_RUN_ID and .createdAt > \"$since\" and (.conclusion == \"success\" or .conclusion == \"\"))] | length")
+          echo "skip=$([ "$GITHUB_EVENT_NAME" = schedule ] && [ "$n" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
   review:
+    needs: check
+    if: needs.check.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
