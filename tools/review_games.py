@@ -5,8 +5,10 @@ summary), OUT/moves.json (every graded move of ours) and OUT/open.epd (blunders 
 with Stockfish's move as bm: the to-fix list).
   review_games.py --hours 25 --stockfish SF --engine ENGINE --out DIR [--nodes 500000] [--movetime 3]
 Grades use Lichess's win-percentage curve, so a 200 cp slip in a won position doesn't count like one at 0.00:
-mistake = our win chance drops >= 10 points, blunder >= 20."""
-import argparse, io, json, math, pathlib, time, urllib.request
+mistake = our win chance drops >= 10 points, blunder >= 20. With <= 7 pieces the Lichess tablebase grades instead
+(win 100, draw 50, loss 0): Stockfish without tablebases rates one won ending below another (a slower mate, a rook
+promotion), so on 2026-10-12/13 all 16 such flags were moves that kept the tablebase result."""
+import argparse, io, json, math, pathlib, time, urllib.parse, urllib.request
 import chess, chess.engine, chess.pgn
 
 BOT = "KavinEngine"
@@ -14,6 +16,41 @@ BOT = "KavinEngine"
 
 def win_pct(cp):  # lichess.org/page/accuracy
     return 50 + 50 * (2 / (1 + math.exp(-0.00368208 * cp)) - 1)
+
+
+TB_WP = {"win": 100, "maybe-win": 100, "cursed-win": 50, "draw": 50, "blessed-loss": 50, "maybe-loss": 0, "loss": 0}
+
+
+def tb_wp(board, us):
+    """Our win % from the Lichess 7-piece tablebase; None with more pieces, castling rights, or no answer."""
+    if board.is_game_over():
+        w = board.outcome().winner
+        return 50 if w is None else 100 if w == us else 0
+    if len(board.piece_map()) > 7 or board.castling_rights:
+        return None
+    for _ in range(3):
+        try:
+            time.sleep(0.5)  # polite: at most ~2 requests a second
+            req = urllib.request.Request("https://tablebase.lichess.ovh/standard?fen=" + urllib.parse.quote(board.fen()),
+                                         headers={"User-Agent": "KavinEngine game review"})
+            cat = json.load(urllib.request.urlopen(req, timeout=20))["category"]
+            break
+        except Exception:
+            time.sleep(5)
+    else:
+        return None
+    wp = TB_WP.get(cat)
+    return None if wp is None else wp if board.turn == us else 100 - wp
+
+
+def tb_drop(fen, san):  # our win-% drop from the move by tablebase, or None outside its range
+    b = chess.Board(fen); us = b.turn
+    before = tb_wp(b, us)
+    if before is None:
+        return None
+    b.push_san(san)
+    after = tb_wp(b, us)
+    return None if after is None else before - after
 
 
 def fetch(hours):
@@ -72,6 +109,11 @@ def main():
         rows.append({"game": gid, "color": "white" if us else "black", "opponent": h["Black" if us else "White"],
                      "elo": h.get("BlackElo" if us else "WhiteElo"), "tc": h.get("TimeControl"), "score": score,
                      "termination": h.get("Termination", ""), "best_win_pct": round(best_wp), "last_clock": last_clock})
+    tb_flags = 0  # Stockfish's flags in tablebase range, re-graded by the tablebase
+    for m in moves:
+        if m["drop"] >= 10 and (d := tb_drop(m["fen"], m["move"])) is not None:
+            m["sf_drop"], m["drop"], m["tb"] = m["drop"], d, True
+            tb_flags += 1
     # The current engine replays every mistake and blunder at a fixed time; Stockfish grades its new choice.
     eng = chess.engine.SimpleEngine.popen_uci(a.engine); eng.configure({"Threads": 1, "Hash": 64})
     blunders, bad = [m for m in moves if m["drop"] >= 20], [m for m in moves if m["drop"] >= 10]
@@ -80,8 +122,9 @@ def main():
         board = chess.Board(m["fen"]); us = board.turn
         mv = eng.play(board, chess.engine.Limit(time=a.movetime)).move
         m["now"] = board.san(mv)
+        d = tb_drop(m["fen"], m["now"]) if m.get("tb") else None
         board.push(mv)
-        m["now_drop"] = round(win_pct(m["cp_before"]) - win_pct(ev(board, us)[0]), 1)
+        m["now_drop"] = d if d is not None else round(win_pct(m["cp_before"]) - win_pct(ev(board, us)[0]), 1)
         if m["now_drop"] >= 10 and m["now"] != m["best"]:  # Stockfish's own move can't be wrong: the drop is search noise
             b = chess.Board(m["fen"])
             open_epd.append(b.epd(bm=b.parse_san(m["best"]), id=f"{m['game']}/{m['ply']}") if m["best"] else b.epd())
@@ -94,7 +137,9 @@ def main():
     rep = [f"# Game review: last {a.hours:g} h", "",
            f"**{n} games, score {w:g}/{n}** "
            f"(W{sum(r['score'] == 1 for r in rows)} D{sum(r['score'] == .5 for r in rows)} L{sum(r['score'] == 0 for r in rows)}), "
-           f"{len(moves)} of our moves graded by Stockfish at {a.nodes:,} nodes.", "",
+           f"{len(moves)} of our moves graded by Stockfish at {a.nodes:,} nodes; {tb_flags} of its flags had ≤ 7 pieces "
+           f"and were re-graded by the tablebase ({sum(m.get('tb', False) and m['drop'] < 10 for m in moves)} kept the "
+           "result: not mistakes).", "",
            "| | Blunders (≥ 20 %) | Mistakes (10–20 %) |", "|---|---|---|"]
     for ph in ("opening", "middlegame", "endgame"):
         rep.append(f"| {ph} | {sum(m['phase'] == ph for m in blunders)} | {sum(m['phase'] == ph for m in mist)} |")
