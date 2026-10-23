@@ -127,4 +127,6 @@ for net, hidden, sbs, wdl, data, init, lr in JOBS:
     sh(f"set -o pipefail; cd {T} && {env} target/release/train {hidden} {sbs} {net} {ready[data]} 2>&1 | tee {log} | "
        f"stdbuf -oL tr '\\r' '\\n' | grep --line-buffered -a 'running loss'")
     shutil.copy(f"{T}/checkpoints/{net}-{sbs}/quantised.bin", f"/kaggle/working/{net}.bin")
+    # The full final checkpoint (float weights + optimiser state) too, so a later run can fine-tune it (INIT).
+    shutil.copytree(f"{T}/checkpoints/{net}-{sbs}", f"/kaggle/working/{net}-{sbs}")
     shutil.copy(f"{T}/checkpoints/{net}.evals.txt", f"/kaggle/working/{net}.evals.txt")
