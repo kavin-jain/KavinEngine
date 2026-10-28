@@ -1,7 +1,7 @@
 # PC build. OpenBench/CCRL convention: `make EXE=<path> EVALFILE=<net>`.
 EXE         ?= engine
-EVALFILE    ?= nets/leela4-512-l400.bin
-NNUE_HIDDEN ?= 512
+EVALFILE    ?= nets/leela4-1024-l280.bin
+NNUE_HIDDEN ?= 1024
 NNUE_KB     ?= 10
 NNUE_OB     ?= 8
 # Default of the UCI Threads option (cloud matches set it per side).
