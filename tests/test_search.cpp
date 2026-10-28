@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <thread>
+#include "../src/movegen.h"
 #include "../src/search.h"
 
 static Board B;
@@ -143,4 +144,24 @@ TEST(time_budget) {
     t = compute_budget(l, WHITE);
     CHECK_EQ(t.soft, 250);   // 7500/30
     g_clock_reserve = 0;
+}
+
+TEST(contempt_avoids_repetition_at_the_root_side) {
+    // Black can repeat the start position a third time with ...Ng8 (a draw); with contempt it must play on.
+    CHECK(B.set_fen(START_FEN));
+    for (const char* u : {"g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1"}) {
+        MoveList l;
+        generate(B, l, false);
+        bool made = false;
+        for (int i = 0; i < l.size && !made; ++i) if (move_to_uci(l.moves[i]) == u) made = B.make(l.moves[i]);
+        CHECK(made);
+    }
+    clear_search_state();
+    g_contempt = 100;
+    Limits l;
+    l.depth = 8;
+    SearchResult r = search(B, l, false);
+    g_contempt = 0;
+    CHECK(move_to_uci(r.best) != "f6g8");
+    CHECK(r.score > -100);  // not the draw score: playing on is better than the penalised draw
 }

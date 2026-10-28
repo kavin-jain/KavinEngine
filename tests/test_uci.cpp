@@ -1,5 +1,6 @@
 #include "test.h"
 #include "../src/uci.h"
+#include "../src/search.h"
 
 static Board B;
 
@@ -14,4 +15,21 @@ TEST(uci_position_with_moves) {
 
 TEST(bench_positions_are_valid) {
     for (int i = 0; i < BENCH_COUNT; ++i) CHECK(B.set_fen(BENCH_FENS[i]));
+}
+
+TEST(contempt_scales_with_opponent_rating) {
+    uci_command("setoption name Contempt value 40");
+    CHECK_EQ(g_contempt, 40);  // no opponent information: full
+    uci_command("setoption name Contempt Rating value 2900");
+    uci_command("setoption name UCI_Opponent value BOT 2800 computer Some Bot");
+    CHECK_EQ(g_contempt, 20);  // 100 points weaker: half
+    uci_command("setoption name UCI_Opponent value BOT 2650 computer Other");
+    CHECK_EQ(g_contempt, 40);  // 200+ weaker: full
+    uci_command("setoption name UCI_Opponent value none 3050 human x");
+    CHECK_EQ(g_contempt, 0);   // stronger: none
+    uci_command("setoption name UCI_Opponent value none none computer x");
+    CHECK_EQ(g_contempt, 0);   // unrated: none
+    uci_command("setoption name Contempt Rating value 0");
+    uci_command("setoption name Contempt value 0");
+    CHECK_EQ(g_contempt, 0);
 }

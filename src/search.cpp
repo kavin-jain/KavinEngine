@@ -31,6 +31,7 @@ std::atomic<bool> g_stop{false};
 std::atomic<bool> g_pondering{false};
 int g_move_overhead = 50;
 int g_clock_reserve = 0;
+int g_contempt = DEFAULT_CONTEMPT;
 #ifndef DEFAULT_THREADS
 #define DEFAULT_THREADS 1
 #endif
@@ -280,12 +281,16 @@ bool fifty_move_mate(Board& b) {
     return true;
 }
 
+// Contempt: a draw is worth -g_contempt to the side to move at the root (even plies) and +g_contempt to its opponent,
+// so against a weaker opponent the engine plays on instead of repeating or simplifying into a draw. 0 = draws are 0.
+static inline int draw_score(int ply) { return ply & 1 ? g_contempt : -g_contempt; }
+
 // cutnode: a zero-window node expected to fail high (the parent's reduced or null-move search); reduced harder.
 int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode, Move excluded = NO_MOVE) {
     const bool pv_node = beta - alpha > 1;
     S->pv_len[ply] = ply;
     if (ply > 0) {
-        if (S->board.is_draw(ply) && !fifty_move_mate(S->board)) return 0;
+        if (S->board.is_draw(ply) && !fifty_move_mate(S->board)) return draw_score(ply);
         if (ply >= MAX_PLY - 1) return eval_at(ply);
     }
     const bool in_check = S->board.in_check();
@@ -418,7 +423,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         }
         if (quiet && n_quiets < 64) quiets[n_quiets++] = m;
     }
-    if (legal == 0) return excluded != NO_MOVE ? alpha : in_check ? -MATE + ply : 0;
+    if (legal == 0) return excluded != NO_MOVE ? alpha : in_check ? -MATE + ply : draw_score(ply);
     // Learn from the search result unless the bound says nothing about the eval's error.
     if (excluded != NO_MOVE) return best;  // a partial search: no TT entry, no correction learning
     if (!in_check && (best_move == NO_MOVE || !is_capture(best_move)) && std::abs(best) < MATE_BOUND
