@@ -13,7 +13,7 @@ ESP32-S3 microcontroller.
 | **Strength** | **3495 ± 11** on the CCRL Blitz scale: 1,536 games against 8 engines from 7 families ([below](#how-strong-is-it)); 3449 ± 11 the day before |
 | **Beats** | Ethereal 12.75 (59.4 %), Halogen 11 (61.2 %), Stash 35/37; Koivisto 7.0 nearly even (45.8 %) |
 | **Lichess** | blitz 2774 after 278 games, rapid 2814 after 81 (2026-10-11), on a free Oracle VM (2 ARM cores) |
-| **Tested** | 67 logged tests, **442,992 games**, mostly on up to 40 parallel cloud machines; failures are logged too ([docs/sprt-log.md](docs/sprt-log.md)) |
+| **Tested** | 70 logged tests, **451,312 games**, mostly on up to 40 parallel cloud machines; failures are logged too ([docs/sprt-log.md](docs/sprt-log.md)) |
 | **Gained in one day** | 3288 → 3377 → **3463** against the same Stash anchors (2026-10-08): speed-ups, then a net trained on Leela Chess Zero data |
 | **Built by** | Kavin Jain, 18, Udaipur, India ([about](#about-and-honesty)) |
 
@@ -28,7 +28,7 @@ ESP32-S3 microcontroller.
 ```mermaid
 flowchart LR
     D["Training data<br/>1.09B Leela positions<br/>+ own self-play games"] --> T["bullet trainer (Rust)<br/>Kaggle GPUs"]
-    T --> N["NNUE net<br/>(768×10 → 512)×2 → 8"]
+    T --> N["NNUE net<br/>(768×10 → 1024)×2 → 8"]
     N --> E["Engine (C++17)<br/>search + evaluation"]
     E --> S["Cloud SPRT tests<br/>40 machines, every change"]
     S -- "only proven gains merge" --> E
@@ -87,6 +87,7 @@ the test stops as soon as the evidence is strong enough either way.
 | Razoring (+22.0 ± 6.4 at the longer 30+0.3) | +36.2 ± 9.2 |
 | SEE in quiescence search and capture ordering | +35.0 ± 7.1 |
 | King-bucketed network inputs | +24.5 ± 8.1 |
+| 1024-wide net, vs the 512 default (+30.0 ± 6.5 at the longer 30+0.3) | +23.6 ± 6.9 |
 | Late move pruning (+15.5 ± 6.1 at the longer 30+0.3) | +22.0 ± 6.9 |
 | Net retrained on 1.09B Leela positions with a 6× longer schedule | +21.7 ± 7.1 |
 | Internal iterative reductions | +21.0 ± 6.6 |
@@ -147,7 +148,7 @@ best width lies for a given device ([docs/research/2026-10-08-nnue-scaling-study
 |---|---|
 | Engine (UCI, any GUI or lichess-bot) | `make` → `./engine` |
 | Tests | `make test` |
-| Bench signature | `./engine bench` → `2102001` nodes |
+| Bench signature | `./engine bench` → `2262059` nodes |
 | ESP32-S3 | `cd esp32 && pio run -e s3 -t upload`, then UCI over USB: `python tools/uci_bridge.py /dev/cu.usbmodemXXXX` |
 
 ## Layout
@@ -170,11 +171,11 @@ games or logs that back it.
 
 Credits, data and licences:
 
-- **Default net `nets/leela4-512-l400.bin`:** trained from scratch on 2.19B positions of Leela Chess Zero training data, as
+- **Default net `nets/leela4-1024-l280.bin`:** 1024 hidden neurons, trained from scratch on 2.19B positions of Leela Chess Zero training data, as
   converted in [linrock/bullet-training-data](https://huggingface.co/datasets/linrock/bullet-training-data). Lc0 training
   data is under the **Open Database License (ODbL)**, and this net is a Produced Work from it. Scores were rescaled to the
-  engine's centipawns (`EVAL_SCALE` = 1107.7). The previous default, `nets/leela2-256-l240.bin`, used 1.09B positions
-  of the same data.
+  engine's centipawns (`EVAL_SCALE` = 1107.7). The previous defaults, `nets/leela4-512-l400.bin` (512 hidden, same data)
+  and `nets/leela2-256-l240.bin` (1.09B positions), came from the same data.
 - **Earlier nets:** the Lichess evaluation database (CC0, Stockfish evaluations) and the engine's own self-play games.
 - **First evaluation:** PeSTO tables by Ronald Friederich, credited in `src/pesto_tables.h`.
 - **Tools:** [bullet](https://github.com/jw1912/bullet) (training), [fastchess](https://github.com/Disservin/fastchess)
