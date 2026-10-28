@@ -3,7 +3,7 @@
 import glob, os, shutil, subprocess
 
 REF = "__REF__"
-JOBS = __JOBS__  # [(net_id, hidden, superbatches, wdl, data: lichess|sp1|sp2|own|leela|leela2|leela4, init "<net>-<sb>" or "", lr)]
+JOBS = __JOBS__  # [(net_id, hidden, superbatches, wdl, data: lichess|sp1|sp2|own|leela|leela2|leela4, init "<net>-<sb>" (this run), "<release tag>:<dir>" (an earlier run) or "", lr)]
 
 
 def sh(cmd):
@@ -109,16 +109,25 @@ def selected(base, mode, fraction, net="/tmp/ke/nets/wb-ft-w3.bin"):  # surprise
 DATA = {"lichess": lichess, "sp1": lambda: selfplay(("sp1", 6)), "sp2": lambda: selfplay(("sp2", 16)),
         "own": lambda: selfplay(("sp1", 6), ("sp2", 16)), "leela": leela, "leela2": lambda: leela_stream((1, 2)),
         "leela4": lambda: leela_stream((1, 2, 3, 4)),
+        "leela58": lambda: leela_stream((5, 6, 7, 8)),  # positions the leela4 nets never saw (fine-tunes)
         "sp2-hard25": lambda: selected("sp2", "select", 0.25), "sp2-rand25": lambda: selected("sp2", "random", 0.25),
         **{t: (lambda t=t: selfplay((t, 12))) for t in ("rl-none", "rl-sf19", "rl-leela", "sp3-25k")}}
 # Labels from another engine or search depth: EVAL_SCALE maps them to the main net's cp (the same rule for every arm).
 CALIBRATED = {"leela", "leela2", "leela4", "rl-none", "rl-sf19", "rl-leela", "sp3-25k"}
+def fetch_init(init):  # "<release tag>:<checkpoint dir>": a checkpoint an earlier run kept, published as <dir>.tar.gz
+    tag, name = init.split(":")
+    d = fetch_release(tag, [f"{name}.tar.gz"])
+    sh(f"mkdir -p {T}/checkpoints && tar -xzf {d}/{name}.tar.gz -C {T}/checkpoints")
+    return name
+
+
 ready = {}
 for net, hidden, sbs, wdl, data, init, lr in JOBS:
     if data not in ready: ready[data] = DATA[data]()
     if data in CALIBRATED and ("scale", data) not in ready:  # label units -> the main net's cp, so search margins fit
         ready["scale", data] = 400 / eval_slope("/tmp/ke/nets/wb-ft-w3.bin", f"{ready[data]}/train_00.bin")
         print(f"{data} EVAL_SCALE {ready['scale', data]:.1f}", flush=True)
+    if ":" in init: init = fetch_init(init)
     log = f"/kaggle/working/{net}.log"
     env = f"WDL={wdl} LR={lr}" + (f" INIT={T}/checkpoints/{init}" if init else "") + \
         (f" SHARDS={net.split('-s')[-1]}" if "-s" in net and net.split('-s')[-1].isdigit() else "")  # e.g. grid-w64-s8
