@@ -6,6 +6,8 @@ NNUE_KB     ?= 10
 NNUE_OB     ?= 8
 # Default of the UCI Threads option (cloud matches set it per side).
 THREADS     ?= 1
+# Default of the UCI Contempt option in cp (cloud matches set it per side; the bot sets it in its config).
+CONTEMPT    ?= 0
 # clang++ when installed: it vectorises the SCReLU dot product much better than g++ (+8.0 % nps on GitHub's
 # runners, identical bench; nps workflow, 2026-10-08). An explicit CXX=... still wins.
 ifeq ($(origin CXX),default)
@@ -18,7 +20,7 @@ else
   NATIVE := -march=native
 endif
 CXXFLAGS ?= -std=c++17 -O3 -Wall -Wextra -DNDEBUG $(NATIVE)
-CXXFLAGS += -DDEFAULT_THREADS=$(THREADS) -DNNUE_HIDDEN=$(NNUE_HIDDEN) -DNNUE_KING_BUCKETS=$(NNUE_KB) -DNNUE_OUTPUT_BUCKETS=$(NNUE_OB)
+CXXFLAGS += -DDEFAULT_THREADS=$(THREADS) -DDEFAULT_CONTEMPT=$(CONTEMPT) -DNNUE_HIDDEN=$(NNUE_HIDDEN) -DNNUE_KING_BUCKETS=$(NNUE_KB) -DNNUE_OUTPUT_BUCKETS=$(NNUE_OB)
 ifeq ($(TUNE),1)
   CXXFLAGS += -DTUNE  # search constants as UCI options, for SPSA (tools/spsa.py)
 endif

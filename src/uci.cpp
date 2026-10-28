@@ -127,11 +127,21 @@ void start_go(std::istringstream& ss) {
     start_worker(search_worker, nullptr);
 }
 
+// Contempt against Lichess opponents: lichess-bot sends "UCI_Opponent <title> <rating> <computer|human> <name>". The draw
+// penalty is full 200 or more rating points below Contempt Rating (our own rating), scales down to 0 at it and is 0
+// against stronger or unrated opponents. Without opponent information (engine matches) or with Contempt Rating 0 it is full.
+int contempt_cp = DEFAULT_CONTEMPT, contempt_rating = 0, opponent_rating = -1;  // -1: no UCI_Opponent received
+
+void update_contempt() {
+    g_contempt = opponent_rating < 0 || contempt_rating == 0 ? contempt_cp
+               : contempt_cp * std::clamp(contempt_rating - opponent_rating, 0, 200) / 200 * (opponent_rating > 0);
+}
+
 void set_option(std::istringstream& ss) {
     std::string t, name, value;
     ss >> t;  // "name"
     while (ss >> t && t != "value") name += (name.empty() ? "" : " ") + t;
-    ss >> value;
+    std::getline(ss >> std::ws, value);  // the rest of the line: string options may hold spaces
     if (name == "Hash") {
         if (TT_FAST) { write_line("info string Hash is fixed on this device"); return; }  // SRAM table, not MB-sized
         long mb = std::clamp(std::strtol(value.c_str(), nullptr, 10), 1L, 4096L);
@@ -145,6 +155,18 @@ void set_option(std::istringstream& ss) {
         g_threads = int(std::clamp(std::strtol(value.c_str(), nullptr, 10), 1L, long(SEARCH_THREADS_MAX)));
     } else if (name == "Clock Reserve") {
         g_clock_reserve = int(std::clamp(std::strtol(value.c_str(), nullptr, 10), 0L, 120000L));
+    } else if (name == "Contempt") {
+        contempt_cp = int(std::clamp(std::strtol(value.c_str(), nullptr, 10), 0L, 100L));
+        update_contempt();
+    } else if (name == "Contempt Rating") {
+        contempt_rating = int(std::clamp(std::strtol(value.c_str(), nullptr, 10), 0L, 4000L));
+        update_contempt();
+    } else if (name == "UCI_Opponent") {
+        std::istringstream o(value);
+        std::string title, rating;
+        o >> title >> rating;
+        opponent_rating = int(std::clamp(std::strtol(rating.c_str(), nullptr, 10), 0L, 4000L));  // "none" -> 0
+        update_contempt();
     }
 #ifdef TUNE
     tune_set_option(name, value);
@@ -186,6 +208,9 @@ bool uci_command(const std::string& raw) {
         write_line("option name Hash type spin default " + std::to_string(std::max(1u, unsigned(TT_DEFAULT_BYTES >> 20))) + " min 1 max 4096");
         write_line("option name Move Overhead type spin default 50 min 0 max 5000");
         write_line("option name Clock Reserve type spin default 0 min 0 max 120000");
+        write_line("option name Contempt type spin default " + std::to_string(DEFAULT_CONTEMPT) + " min 0 max 100");
+        write_line("option name Contempt Rating type spin default 0 min 0 max 4000");
+        write_line("option name UCI_Opponent type string default <empty>");
         write_line("option name Threads type spin default " + std::to_string(g_threads) + " min 1 max " + std::to_string(SEARCH_THREADS_MAX));
 #if SEARCH_THREADS_MAX > 1
         write_line("option name Ponder type check default false");  // GUIs send "go ponder" only when this is on

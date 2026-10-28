@@ -23,6 +23,10 @@ extern std::atomic<bool> g_pondering;  // set by "go ponder", cleared by ponderh
 extern int g_clock_reserve;  // ms the time budget never plans to use (UCI "Clock Reserve", online play)
 extern int g_threads;        // search threads (UCI "Threads"), 1..SEARCH_THREADS_MAX
 extern int g_move_overhead;  // ms kept in reserve per move for GUI/network lag (UCI "Move Overhead")
+#ifndef DEFAULT_CONTEMPT
+#define DEFAULT_CONTEMPT 0
+#endif
+extern int g_contempt;       // cp a draw costs the side to move at the root (UCI "Contempt", scaled by the opponent's rating)
 
 void search_init();         // reduction table; call once
 void clear_search_state();
