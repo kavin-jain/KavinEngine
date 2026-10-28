@@ -7,7 +7,7 @@ NNUE_OB     ?= 8
 # Default of the UCI Threads option (cloud matches set it per side).
 THREADS     ?= 1
 # Default of the UCI Contempt option in cp (cloud matches set it per side; the bot sets it in its config).
-CONTEMPT    ?= 0
+CONTEMPT    ?= 25
 # clang++ when installed: it vectorises the SCReLU dot product much better than g++ (+8.0 % nps on GitHub's
 # runners, identical bench; nps workflow, 2026-10-08). An explicit CXX=... still wins.
 ifeq ($(origin CXX),default)
