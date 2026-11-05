@@ -54,6 +54,7 @@ struct Searcher {
     Accumulator acc[MAX_PLY + 1];  // acc[ply] matches the board at that ply
     int eval_stack[MAX_PLY + 1];   // static eval per ply (-INF when in check)
     int16_t corr[2][CORRHIST_SIZE];  // pawn-structure correction history, scaled by 256
+    int16_t corr_np[2][2][CORRHIST_SIZE];  // [side to move][piece colour] non-pawn placement correction, scaled by 256
     int16_t cont[CH][CH];            // continuation history [previous move][this move], each as piece * 64 + to
     int moved[MAX_PLY];              // the move made at each ply as piece * 64 + to; -1 for a null move
 };
@@ -89,6 +90,8 @@ TUNABLE(LMR_DIV, 207, 150, 350)
 TUNABLE(HIST_MAX, 1108, 400, 2400)    // history bonus min(depth^2, HIST_MAX)
 TUNABLE(ASP_DELTA, 21, 10, 60)        // first aspiration window half-width, centipawns
 TUNABLE(LMP_BASE, 5, 1, 8)            // late move pruning: quiet moves after LMP_BASE + depth^2 moves skipped (depth <= 8)
+TUNABLE(CORR_PAWN_W, 96, 32, 192)     // correction weights in 128ths: pawn-structure table...
+TUNABLE(CORR_NP_W, 48, 0, 128)        // ...and each side's non-pawn pieces table
 std::atomic<bool> g_helpers_stop{false};  // set when the main thread has finished: helpers stop too
 
 uint64_t total_nodes() {
@@ -131,8 +134,21 @@ unsigned pawn_index(const Board& b) {
     return unsigned(k >> 40) & (CORRHIST_SIZE - 1);
 }
 
+// The same idea per colour for the knights, bishops, rooks, queens and king: piece placements the net misjudges.
+unsigned np_index(const Board& b, Color c) {
+    uint64_t k = 0;
+    for (int pt = KNIGHT; pt <= KING; ++pt) k ^= b.pieces[make_piece(c, PieceType(pt))] * (0x9E3779B97F4A7C15ull + 0x632BE59BD9B4E019ull * pt);
+    return unsigned(k >> 40) & (CORRHIST_SIZE - 1);
+}
+
+int correction(const Board& b) {
+    const int stm = b.stm;
+    return (S->corr[stm][pawn_index(b)] * CORR_PAWN_W
+            + (S->corr_np[stm][WHITE][np_index(b, WHITE)] + S->corr_np[stm][BLACK][np_index(b, BLACK)]) * CORR_NP_W) / (128 * 256);
+}
+
 int corrected(int raw) {
-    return std::clamp(raw + S->corr[S->board.stm][pawn_index(S->board)] / 256, -MATE_BOUND + 1, MATE_BOUND - 1);
+    return std::clamp(raw + correction(S->board), -MATE_BOUND + 1, MATE_BOUND - 1);
 }
 
 bool should_stop() {
@@ -431,9 +447,11 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
     if (excluded != NO_MOVE) return best;  // a partial search: no TT entry, no correction learning
     if (!in_check && (best_move == NO_MOVE || !is_capture(best_move)) && std::abs(best) < MATE_BOUND
         && !(best >= beta && best <= static_eval) && !(best <= alpha0 && best >= static_eval)) {
-        int16_t& c = S->corr[S->board.stm][pawn_index(S->board)];
-        const int w = std::min(depth + 1, 16);
-        c = int16_t(std::clamp((c * (256 - w) + (best - raw_eval) * 256 * w) / 256, -256 * 32, 256 * 32));
+        const int w = std::min(depth + 1, 16), err = (best - raw_eval) * 256 * w;
+        for (int16_t* c : {&S->corr[S->board.stm][pawn_index(S->board)],
+                           &S->corr_np[S->board.stm][WHITE][np_index(S->board, WHITE)],
+                           &S->corr_np[S->board.stm][BLACK][np_index(S->board, BLACK)]})
+            *c = int16_t(std::clamp((*c * (256 - w) + err) / 256, -256 * 32, 256 * 32));
     }
     g_tt.store(S->board.key, best_move, score_to_tt(best, ply), depth,
                best >= beta ? BOUND_LOWER : best > alpha0 ? BOUND_EXACT : BOUND_UPPER, in_check ? EVAL_NONE : raw_eval);
@@ -499,6 +517,7 @@ void clear_search_state() {
         std::memset(t.history, 0, sizeof t.history);
         std::memset(t.killers, 0, sizeof t.killers);
         std::memset(t.corr, 0, sizeof t.corr);
+        std::memset(t.corr_np, 0, sizeof t.corr_np);
         std::memset(t.cont, 0, sizeof t.cont);
     }
 }
