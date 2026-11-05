@@ -131,8 +131,13 @@ unsigned pawn_index(const Board& b) {
     return unsigned(k >> 40) & (CORRHIST_SIZE - 1);
 }
 
+// The eval fades toward a draw as the 50-move counter runs (a fifth gone at 40 plies without a capture or pawn move),
+// so the search prefers lines that make progress when it is ahead and does not trust a static edge that cannot be
+// converted. Known wins (bare king, mop-up) keep their full value.
 int corrected(int raw) {
-    return std::clamp(raw + S->corr[S->board.stm][pawn_index(S->board)] / 256, -MATE_BOUND + 1, MATE_BOUND - 1);
+    int v = raw + S->corr[S->board.stm][pawn_index(S->board)] / 256;
+    if (std::abs(v) < KNOWN_WIN / 2) v = v * (200 - S->board.halfmove) / 200;
+    return std::clamp(v, -MATE_BOUND + 1, MATE_BOUND - 1);
 }
 
 bool should_stop() {
