@@ -56,6 +56,7 @@ struct Searcher {
     int16_t corr[2][CORRHIST_SIZE];  // pawn-structure correction history, scaled by 256
     int16_t cont[CH][CH];            // continuation history [previous move][this move], each as piece * 64 + to
     int moved[MAX_PLY];              // the move made at each ply as piece * 64 + to; -1 for a null move
+    int dext[MAX_PLY + 1];           // double extensions on the path to each ply (capped: the search must end)
 };
 // Static storage: these arrays must not live on the small ESP32 task stack. One searcher per thread; S is this
 // thread's. The TT is shared (Lazy SMP); node counts of helpers are read racily, for reporting only.
@@ -89,6 +90,7 @@ TUNABLE(LMR_DIV, 207, 150, 350)
 TUNABLE(HIST_MAX, 1108, 400, 2400)    // history bonus min(depth^2, HIST_MAX)
 TUNABLE(ASP_DELTA, 21, 10, 60)        // first aspiration window half-width, centipawns
 TUNABLE(LMP_BASE, 5, 1, 8)            // late move pruning: quiet moves after LMP_BASE + depth^2 moves skipped (depth <= 8)
+TUNABLE(SE_DOUBLE_MARGIN, 20, 0, 80)  // double singular extension: every other move this far below the singular beta
 std::atomic<bool> g_helpers_stop{false};  // set when the main thread has finished: helpers stop too
 
 uint64_t total_nodes() {
@@ -328,6 +330,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
     if (!pv_node && !in_check && null_ok && excluded == NO_MOVE && depth >= 3 && S->board.has_non_pawn_material(S->board.stm)
         && static_eval >= beta) {
         S->moved[ply] = -1;
+        S->dext[ply + 1] = S->dext[ply];
         S->board.make_null();
         S->acc[ply + 1] = S->acc[ply];
         int s = -negamax(-beta, -beta + 1, depth - 1 - (NMP_BASE + depth / NMP_DIV), ply + 1, false, !cutnode);
@@ -346,7 +349,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         const int singular_beta = score_from_tt(tte.score, ply) - SE_MARGIN * depth / 8;
         const int s = negamax(singular_beta - 1, singular_beta, (depth - 1) / 2, ply, false, cutnode, tt_move);
         if (S->stopped) return 0;
-        if (s < singular_beta) extension = 1;
+        if (s < singular_beta) extension = !pv_node && s < singular_beta - SE_DOUBLE_MARGIN && S->dext[ply] < 6 ? 2 : 1;
         else if (singular_beta >= beta) return singular_beta;
         else if (score_from_tt(tte.score, ply) >= beta) extension = -1;
     }
@@ -382,6 +385,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         if (nnue_ready()) nnue_update(S->acc[ply], S->acc[ply + 1], S->board);
         ++legal;
         const int new_depth = depth - 1 + (m == tt_move ? extension : 0);
+        S->dext[ply + 1] = S->dext[ply] + (m == tt_move && extension == 2);
         const uint64_t nodes_before = S->nodes;
         int score;
         if (legal == 1) {
@@ -500,6 +504,7 @@ static SearchResult iterate(const Board& root, const Limits& limits, bool verbos
     if (nnue_ready()) nnue_refresh(S->board, S->acc[0]);
     S->limits = limits;
     S->start = now_ms();
+    S->dext[0] = 0;
     S->budget = compute_budget(limits, root.stm);
     S->nodes = 0;
     S->stopped = false;
