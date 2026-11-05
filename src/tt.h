@@ -3,14 +3,16 @@
 #include "types.h"
 
 enum Bound : uint8_t { BOUND_NONE = 0, BOUND_UPPER = 1, BOUND_LOWER = 2, BOUND_EXACT = 3 };
-struct TTEntry { Key key; Move move; int16_t score; uint8_t depth; uint8_t bound; };  // decoded entry
+constexpr int16_t EVAL_NONE = INT16_MIN;  // no static eval stored (in check); evals stay inside +-MATE_BOUND
+struct TTEntry { Key key; Move move; int16_t score; uint8_t depth; uint8_t bound; int16_t eval; };  // decoded entry
 
 class TT {
 public:
     bool resize(size_t bytes, bool fast);  // largest power-of-two entry count that fits; false if allocation fails
     void clear();
-    bool probe(Key key, TTEntry& out) const;
-    void store(Key key, Move move, int score, int depth, int bound);
+    bool probe(Key key, TTEntry& out) const;  // true when the slot holds this key (bound NONE: only its eval is known)
+    void store(Key key, Move move, int score, int depth, int bound, int eval = EVAL_NONE);
+    void prefetch(Key key) const { if (table) __builtin_prefetch(&table[key & mask]); }  // before the node probes it
 private:
     // Lazy SMP writes race: a slot stores key ^ data, so a slot torn between two writers fails the key check.
     struct Slot { uint64_t check, data; };  // 16 bytes

@@ -226,7 +226,8 @@ int qsearch(int alpha, int beta, int ply) {
     const bool pv_node = beta - alpha > 1;
     TTEntry tte;
     Move tt_move = NO_MOVE;
-    if (g_tt.probe(S->board.key, tte)) {
+    const bool tt_hit = g_tt.probe(S->board.key, tte);
+    if (tt_hit) {
         tt_move = tte.move;
         const int s = score_from_tt(tte.score, ply);
         if (!pv_node && (tte.bound == BOUND_EXACT || (tte.bound == BOUND_LOWER && s >= beta) || (tte.bound == BOUND_UPPER && s <= alpha)))
@@ -235,10 +236,14 @@ int qsearch(int alpha, int beta, int ply) {
     const int alpha0 = alpha;
     Move best_move = NO_MOVE;
     const bool in_check = S->board.in_check();
-    int best = -INF;
+    int best = -INF, raw_eval = EVAL_NONE;
     if (!in_check) {  // stand pat
-        best = corrected(eval_at(ply));
-        if (best >= beta) return best;
+        raw_eval = tt_hit && tte.eval != EVAL_NONE ? tte.eval : eval_at(ply);
+        best = corrected(raw_eval);
+        if (best >= beta) {
+            if (!tt_hit) g_tt.store(S->board.key, NO_MOVE, 0, 0, BOUND_NONE, raw_eval);
+            return best;
+        }
         if (best > alpha) alpha = best;
     }
     MoveList list;
@@ -252,6 +257,7 @@ int qsearch(int alpha, int beta, int ply) {
         if (!in_check && scores[i] < 0) break;  // losing captures (SEE < 0, sorted last) can't beat the stand-pat
         S->moved[ply] = move_key(m);
         if (!S->board.make(m)) continue;
+        g_tt.prefetch(S->board.key);
         if (nnue_ready()) nnue_update(S->acc[ply], S->acc[ply + 1], S->board);
         ++legal;
         int score = -qsearch(-beta, -alpha, ply + 1);
@@ -265,7 +271,7 @@ int qsearch(int alpha, int beta, int ply) {
     }
     if (in_check && legal == 0) return -MATE + ply;
     g_tt.store(S->board.key, best_move, score_to_tt(best, ply), 0,
-               best >= beta ? BOUND_LOWER : best > alpha0 ? BOUND_EXACT : BOUND_UPPER);
+               best >= beta ? BOUND_LOWER : best > alpha0 ? BOUND_EXACT : BOUND_UPPER, raw_eval);
     return best;
 }
 
@@ -309,7 +315,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
     // Internal iterative reduction: with no TT move to try first, ordering is weak here; search shallower.
     if (depth >= 4 && tt_move == NO_MOVE) --depth;
 
-    const int raw_eval = in_check ? -INF : eval_at(ply);
+    const int raw_eval = in_check ? -INF : tt_hit && tte.eval != EVAL_NONE ? tte.eval : eval_at(ply);
+    if (!tt_hit && !in_check) g_tt.store(S->board.key, NO_MOVE, 0, 0, BOUND_NONE, raw_eval);  // early returns keep it
     const int static_eval = in_check ? -INF : corrected(raw_eval);
     S->eval_stack[ply] = static_eval;
 
@@ -379,6 +386,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         if (!S->board.make(m)) continue;
         if (futile && !S->board.in_check()) { S->board.unmake(m); continue; }
         if (quiet_hangs && !S->board.in_check()) { S->board.unmake(m); continue; }
+        g_tt.prefetch(S->board.key);
         if (nnue_ready()) nnue_update(S->acc[ply], S->acc[ply + 1], S->board);
         ++legal;
         const int new_depth = depth - 1 + (m == tt_move ? extension : 0);
@@ -428,7 +436,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         c = int16_t(std::clamp((c * (256 - w) + (best - raw_eval) * 256 * w) / 256, -256 * 32, 256 * 32));
     }
     g_tt.store(S->board.key, best_move, score_to_tt(best, ply), depth,
-               best >= beta ? BOUND_LOWER : best > alpha0 ? BOUND_EXACT : BOUND_UPPER);
+               best >= beta ? BOUND_LOWER : best > alpha0 ? BOUND_EXACT : BOUND_UPPER, in_check ? EVAL_NONE : raw_eval);
     return best;
 }
 
