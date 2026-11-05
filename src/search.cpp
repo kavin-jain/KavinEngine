@@ -174,7 +174,7 @@ int move_key(Move m) { return S->board.mailbox[from_sq(m)] * 64 + to_sq(m); }
 // Captures and promotions are scored as if SEE >= 0 and marked pending: pick() runs SEE only when such a move would
 // be chosen, and demotes it to the losing-capture band if it fails. Same order as scoring SEE up front, fewer SEE calls.
 void score_moves(const MoveList& list, int16_t* scores, bool* see_pending, Move tt_move, int ply, Bitboard threats) {
-    const int16_t *c1 = cont_of(ply, 1), *c2 = cont_of(ply, 2);
+    const int16_t *c1 = cont_of(ply, 1), *c2 = cont_of(ply, 2), *c4 = cont_of(ply, 4);
     for (int i = 0; i < list.size; ++i) {
         const Move m = list.moves[i];
         see_pending[i] = false;
@@ -187,9 +187,9 @@ void score_moves(const MoveList& list, int16_t* scores, bool* see_pending, Move 
             see_pending[i] = true;
         } else if (m == S->killers[ply][0]) scores[i] = 19000;
         else if (m == S->killers[ply][1]) scores[i] = 18999;
-        else {  // the mean of three tables bounded to +-16384 stays below the killers
+        else {  // the mean of four tables bounded to +-16384 stays below the killers
             const int k = move_key(m);
-            scores[i] = int16_t((history_of(m, threats) + (c1 ? c1[k] : 0) + (c2 ? c2[k] : 0)) / 3);
+            scores[i] = int16_t((history_of(m, threats) + (c1 ? c1[k] : 0) + (c2 ? c2[k] : 0) + (c4 ? c4[k] : 0)) / 4);
         }
     }
 }
@@ -213,7 +213,7 @@ void gravity(int16_t& h, int bonus) { h = int16_t(h + bonus - h * std::abs(bonus
 
 void update_history(Move m, int bonus, Bitboard threats, int ply) {
     gravity(history_of(m, threats), bonus);
-    for (int back = 1; back <= 2; ++back)
+    for (int back : {1, 2, 4})  // our own move two turns ago too (4 plies back)
         if (int16_t* c = cont_of(ply, back)) gravity(c[move_key(m)], bonus);
 }
 
