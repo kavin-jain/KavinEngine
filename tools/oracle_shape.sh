@@ -26,5 +26,8 @@ for i in $(seq 60); do [ "$(shape)" = "$want" ] && break; sleep 20; done
 until ssh -o ConnectTimeout=10 oracle true; do sleep 15; done
 ssh oracle "sed -i -E -e 's/^(    Hash: +)[0-9]+/\1$hash/' -e 's/^(    Threads: +)[0-9]+/\1$threads/' ~/lichess-bot/config.yml &&
             grep -E '^    (Hash|Threads):' ~/lichess-bot/config.yml && nproc"
-ssh s-remote "$OPS on"
+# Start the bot on Oracle directly: lynxS reaches Oracle through a reverse tunnel that needs a while after the reboot
+# (2026-10-31: the only `on` via lynxS failed with "connect failed", the bot stayed off 20 min). Then the Telegram reply.
+until ssh -o ConnectTimeout=15 oracle 'rm -f ~/.chessbot-off && systemctl --user start lichess-bot'; do sleep 15; done
+for i in $(seq 20); do ssh -o ConnectTimeout=15 s-remote "$OPS on" && break; sleep 30; done
 echo "$(date '+%F %T') done: $(shape)"
