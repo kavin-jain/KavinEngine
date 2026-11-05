@@ -107,40 +107,64 @@ void nnue_refresh(const Board& b, Accumulator& acc) {
     for (int c = 0; c < 2; ++c) refresh_persp(b, acc.v[c], c);
 }
 
+// Own king changed bucket or mirror side in this move: that perspective is rebuilt, not patched.
+static bool rebuild_persp(const Board& b, int c) {
+#if NNUE_KING_BUCKETS
+    const KingCtx k = king_ctx(b, c);
+    for (int i = 0; i < b.dirty_n; ++i)
+        if (b.dirty[i].pc == make_piece(Color(c), KING) && !b.dirty[i].add) {
+            const KingCtx o = king_ctx(c, b.dirty[i].sq);
+            if (o.base != k.base || o.flip != k.flip) return true;
+        }
+#else
+    (void)b; (void)c;
+#endif
+    return false;
+}
+
 // Fused copy + patch for quiet moves (1 add, 1 sub) and captures (1 add, 2 subs); rarer moves patch a copy.
 // int16 wraps modulo 2^16 either way, so every path gives the same bits as sequential adds.
+static void patch_persp(const int16_t* __restrict p, int16_t* __restrict o, int c, KingCtx kc,
+                        const Board::DirtyPiece* dirty, int n) {
+    const int16_t* add[6];
+    const int16_t* sub[6];
+    int na = 0, ns = 0;
+    for (int i = 0; i < n; ++i) {
+        const int16_t* w = W0 + feature(c, dirty[i].pc, dirty[i].sq, kc) * N;
+        if (dirty[i].add) add[na++] = w; else sub[ns++] = w;
+    }
+    if (na == 1 && ns == 1) {
+        for (int i = 0; i < N; ++i) o[i] = int16_t(p[i] + add[0][i] - sub[0][i]);
+    } else if (na == 1 && ns == 2) {
+        for (int i = 0; i < N; ++i) o[i] = int16_t(p[i] + add[0][i] - sub[0][i] - sub[1][i]);
+    } else {  // castling, promotions, a null move (n = 0: a plain copy)
+        std::memcpy(o, p, sizeof(int16_t) * N);
+        for (int k = 0; k < na; ++k) for (int i = 0; i < N; ++i) o[i] = int16_t(o[i] + add[k][i]);
+        for (int k = 0; k < ns; ++k) for (int i = 0; i < N; ++i) o[i] = int16_t(o[i] - sub[k][i]);
+    }
+}
+
 void nnue_update(const Accumulator& parent, Accumulator& child, const Board& b) {
     for (int c = 0; c < 2; ++c) {
-        const KingCtx k = king_ctx(b, c);  // after the move
 #if NNUE_KING_BUCKETS
-        bool rebuild = false;  // own king changed bucket or mirror side: rebuild this perspective from scratch
-        for (int i = 0; i < b.dirty_n; ++i)
-            if (b.dirty[i].pc == make_piece(Color(c), KING) && !b.dirty[i].add) {
-                const KingCtx o = king_ctx(c, b.dirty[i].sq);
-                rebuild = o.base != k.base || o.flip != k.flip;
-            }
-        if (rebuild) { refresh_cached(b, child.v[c], c); continue; }
+        if (rebuild_persp(b, c)) { refresh_cached(b, child.v[c], c); continue; }
 #endif
-        const int16_t* add[6];
-        const int16_t* sub[6];
-        int na = 0, ns = 0;
-        for (int i = 0; i < b.dirty_n; ++i) {
-            const Board::DirtyPiece& d = b.dirty[i];
-            const int16_t* w = W0 + feature(c, d.pc, d.sq, k) * N;
-            if (d.add) add[na++] = w; else sub[ns++] = w;
-        }
-        const int16_t* __restrict p = parent.v[c];
-        int16_t* __restrict o = child.v[c];
-        if (na == 1 && ns == 1) {
-            for (int i = 0; i < N; ++i) o[i] = int16_t(p[i] + add[0][i] - sub[0][i]);
-        } else if (na == 1 && ns == 2) {
-            for (int i = 0; i < N; ++i) o[i] = int16_t(p[i] + add[0][i] - sub[0][i] - sub[1][i]);
-        } else {
-            std::memcpy(o, p, sizeof child.v[c]);
-            for (int k = 0; k < na; ++k) for (int i = 0; i < N; ++i) o[i] = int16_t(o[i] + add[k][i]);
-            for (int k = 0; k < ns; ++k) for (int i = 0; i < N; ++i) o[i] = int16_t(o[i] - sub[k][i]);
-        }
+        patch_persp(parent.v[c], child.v[c], c, king_ctx(b, c), b.dirty, b.dirty_n);  // king context after the move
     }
+}
+
+bool nnue_needs_refresh(const Board& b) { return rebuild_persp(b, WHITE) || rebuild_persp(b, BLACK); }
+
+AccDelta nnue_delta(const Board& b) {
+    AccDelta d;
+    d.n = b.dirty_n;
+    std::memcpy(d.dirty, b.dirty, sizeof(Board::DirtyPiece) * size_t(b.dirty_n));
+    for (int c = 0; c < 2; ++c) d.ksq[c] = lsb(b.pieces[make_piece(Color(c), KING)]);
+    return d;
+}
+
+void nnue_apply(const Accumulator& parent, Accumulator& child, const AccDelta& d) {
+    for (int c = 0; c < 2; ++c) patch_persp(parent.v[c], child.v[c], c, king_ctx(c, d.ksq[c]), d.dirty, d.n);
 }
 
 // SCReLU sum as (x * w) * x: x * w fits int16 (|w| <= 127, checked at load), and a 256-term block sums to at

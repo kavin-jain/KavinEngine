@@ -71,3 +71,34 @@ TEST(nnue_matches_trainer_float_evals) {
     CHECK_EQ(n, 6);
     CHECK(std::sqrt(sq / n) <= 20.0);
 }
+
+TEST(lazy_deltas_match_refresh) {  // search's lazy path: deltas recorded at make(), applied in a batch at eval time
+    static AccDelta D[512];
+    uint64_t s = 7;
+    for (int game = 0; game < 200; ++game) {
+        CHECK(B.set_fen(game % 2 ? START_FEN : "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"));
+        nnue_refresh(B, Stack[0]);
+        int d = 0, done = 0;  // Stack[0..done] are up to date; D[done+1..d] are pending
+        for (int tries = 0; tries < 400 && d < 120; ++tries) {
+            MoveList l;
+            generate(B, l, false);
+            if (l.size == 0) break;
+            s ^= s << 13; s ^= s >> 7; s ^= s << 17;
+            const Move m = l.moves[s % l.size];
+            if (!B.make(m)) continue;
+            if (nnue_needs_refresh(B)) {  // king changed bucket: catch up, then update from the board
+                for (; done < d; ++done) nnue_apply(Stack[done], Stack[done + 1], D[done + 1]);
+                nnue_update(Stack[d], Stack[d + 1], B);
+                done = ++d;
+            } else {
+                D[++d] = nnue_delta(B);
+            }
+            if (s % 5 == 0 || B.is_draw()) {  // evaluate here: apply the pending deltas and compare
+                for (; done < d; ++done) nnue_apply(Stack[done], Stack[done + 1], D[done + 1]);
+                nnue_refresh(B, R);
+                CHECK(std::memcmp(&Stack[d], &R, sizeof R) == 0);
+            }
+            if (B.is_draw()) break;
+        }
+    }
+}

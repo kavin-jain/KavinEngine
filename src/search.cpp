@@ -51,7 +51,9 @@ struct Searcher {
     Move pv[MAX_PLY][MAX_PLY];
     uint64_t root_nodes[64][64];  // nodes spent below each root move this search (time management)
     int pv_len[MAX_PLY];
-    Accumulator acc[MAX_PLY + 1];  // acc[ply] matches the board at that ply
+    Accumulator acc[MAX_PLY + 1];  // acc[ply] matches the board at that ply once acc_ok[ply] (lazy: see ensure_acc)
+    AccDelta delta[MAX_PLY + 1];   // the move into each ply, applied when a position at or below it is evaluated
+    bool acc_ok[MAX_PLY + 1];
     int eval_stack[MAX_PLY + 1];   // static eval per ply (-INF when in check)
     int16_t corr[2][CORRHIST_SIZE];  // pawn-structure correction history, scaled by 256
     int16_t cont[CH][CH];            // continuation history [previous move][this move], each as piece * 64 + to
@@ -118,8 +120,31 @@ int bare_king_eval(const Board& b) {
     return 0;
 }
 
+// Lazy NNUE updates: make() records the move's piece changes; the accumulators are brought up to date only when a
+// position is evaluated, from the deepest one already computed. Positions cut off before their eval (TT cutoffs, a
+// stand-pat or eval taken from the TT) cost no update at all. A king that changes bucket is updated at once (the
+// refresh needs that board).
+void ensure_acc(int ply) {
+    int j = ply;
+    while (!S->acc_ok[j]) --j;
+    for (++j; j <= ply; ++j) { nnue_apply(S->acc[j - 1], S->acc[j], S->delta[j]); S->acc_ok[j] = true; }
+}
+
+void acc_after_make(int ply) {  // the board is the position after a move from ply to ply + 1
+    if (!nnue_ready()) return;
+    if (nnue_needs_refresh(S->board)) {
+        ensure_acc(ply);
+        nnue_update(S->acc[ply], S->acc[ply + 1], S->board);
+        S->acc_ok[ply + 1] = true;
+    } else {
+        S->delta[ply + 1] = nnue_delta(S->board);
+        S->acc_ok[ply + 1] = false;
+    }
+}
+
 int eval_at(int ply) {
     if (const int k = bare_king_eval(S->board)) return k;
+    if (nnue_ready()) ensure_acc(ply);
     const int e = nnue_ready() ? nnue_evaluate(S->acc[ply], S->board.stm, popcount(S->board.occ)) : evaluate(S->board);
     return std::clamp(e, -MATE_BOUND + 1, MATE_BOUND - 1);
 }
@@ -258,7 +283,7 @@ int qsearch(int alpha, int beta, int ply) {
         S->moved[ply] = move_key(m);
         if (!S->board.make(m)) continue;
         g_tt.prefetch(S->board.key);
-        if (nnue_ready()) nnue_update(S->acc[ply], S->acc[ply + 1], S->board);
+        acc_after_make(ply);
         ++legal;
         int score = -qsearch(-beta, -alpha, ply + 1);
         S->board.unmake(m);
@@ -336,7 +361,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         && static_eval >= beta) {
         S->moved[ply] = -1;
         S->board.make_null();
-        S->acc[ply + 1] = S->acc[ply];
+        S->delta[ply + 1] = AccDelta{};  // a null move changes no piece
+        S->acc_ok[ply + 1] = false;
         int s = -negamax(-beta, -beta + 1, depth - 1 - (NMP_BASE + depth / NMP_DIV), ply + 1, false, !cutnode);
         S->board.unmake_null();
         if (S->stopped) return 0;
@@ -387,7 +413,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         if (futile && !S->board.in_check()) { S->board.unmake(m); continue; }
         if (quiet_hangs && !S->board.in_check()) { S->board.unmake(m); continue; }
         g_tt.prefetch(S->board.key);
-        if (nnue_ready()) nnue_update(S->acc[ply], S->acc[ply + 1], S->board);
+        acc_after_make(ply);
         ++legal;
         const int new_depth = depth - 1 + (m == tt_move ? extension : 0);
         const uint64_t nodes_before = S->nodes;
@@ -506,6 +532,7 @@ void clear_search_state() {
 static SearchResult iterate(const Board& root, const Limits& limits, bool verbose) {
     S->board = root;
     if (nnue_ready()) nnue_refresh(S->board, S->acc[0]);
+    S->acc_ok[0] = true;
     S->limits = limits;
     S->start = now_ms();
     S->budget = compute_budget(limits, root.stm);

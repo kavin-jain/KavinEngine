@@ -22,6 +22,11 @@ bool nnue_load(const unsigned char* data, size_t size);  // false if the size do
 bool nnue_ready();
 void nnue_refresh(const Board& b, Accumulator& acc);
 void nnue_update(const Accumulator& parent, Accumulator& child, const Board& b);  // applies b.dirty
+// Lazy updates: a move's piece changes, kept until the position is evaluated (most searched positions never are).
+struct AccDelta { Board::DirtyPiece dirty[6]; int n; int ksq[2]; };
+AccDelta nnue_delta(const Board& b);        // b after make(): its dirty pieces and king squares
+bool nnue_needs_refresh(const Board& b);    // the move took a king into another bucket: nnue_update now, from b
+void nnue_apply(const Accumulator& parent, Accumulator& child, const AccDelta& d);  // never a refresh
 int nnue_evaluate(const Accumulator& acc, Color stm, int pieces);  // centipawns, side-to-move relative; pieces incl. kings
 
 extern const unsigned char NNUE_DATA[];  // generated from EVALFILE by tools/bin2cpp.py
