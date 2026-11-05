@@ -13,7 +13,7 @@ ESP32-S3 microcontroller.
 | **Strength** | **3495 ± 11** on the CCRL Blitz scale: 1,536 games against 8 engines from 7 families ([below](#how-strong-is-it)); 3449 ± 11 the day before |
 | **Beats** | Ethereal 12.75 (59.4 %), Halogen 11 (61.2 %), Stash 35/37; Koivisto 7.0 nearly even (45.8 %) |
 | **Lichess** | blitz 2774 after 278 games, rapid 2814 after 81 (2026-10-11), on a free Oracle VM (2 ARM cores) |
-| **Tested** | 70 logged tests, **451,312 games**, mostly on up to 40 parallel cloud machines; failures are logged too ([docs/sprt-log.md](docs/sprt-log.md)) |
+| **Tested** | 71 logged tests, **454,512 games**, mostly on up to 40 parallel cloud machines; failures are logged too ([docs/sprt-log.md](docs/sprt-log.md)) |
 | **Gained in one day** | 3288 → 3377 → **3463** against the same Stash anchors (2026-10-08): speed-ups, then a net trained on Leela Chess Zero data |
 | **Built by** | Kavin Jain, 18, Udaipur, India ([about](#about-and-honesty)) |
 
@@ -92,6 +92,7 @@ the test stops as soon as the evidence is strong enough either way.
 | Net retrained on 1.09B Leela positions with a 6× longer schedule | +21.7 ± 7.1 |
 | Internal iterative reductions | +21.0 ± 6.6 |
 | Correction history | +17.6 ± 7.3 |
+| Static eval kept in the hash table (+15 % speed, same search) | +16.0 ± 6.4 |
 | Threat-aware quiet-move history | +14.4 ± 6.8 |
 | Mop-up evaluation for won endgames | +12.5 ± 6.4 |
 | SPSA retune of 15 search constants for the 512 net (+5.4 ± 3.1 at 30+0.3) | +7.8 ± 4.5 |
