@@ -13,7 +13,7 @@ ESP32-S3 microcontroller.
 | **Strength** | **3495 ± 11** on the CCRL Blitz scale: 1,536 games against 8 engines from 7 families ([below](#how-strong-is-it)); 3449 ± 11 the day before |
 | **Beats** | Ethereal 12.75 (59.4 %), Halogen 11 (61.2 %), Stash 35/37; Koivisto 7.0 nearly even (45.8 %) |
 | **Lichess** | blitz 2774 after 278 games, rapid 2814 after 81 (2026-10-11), on a free Oracle VM (2 ARM cores) |
-| **Tested** | 75 logged tests, **505,712 games**, mostly on up to 40 parallel cloud machines; failures are logged too ([docs/sprt-log.md](docs/sprt-log.md)) |
+| **Tested** | 77 logged tests, **531,312 games**, mostly on up to 40 parallel cloud machines; failures are logged too ([docs/sprt-log.md](docs/sprt-log.md)) |
 | **Gained in one day** | 3288 → 3377 → **3463** against the same Stash anchors (2026-10-08): speed-ups, then a net trained on Leela Chess Zero data |
 | **Built by** | Kavin Jain, 18, Udaipur, India ([about](#about-and-honesty)) |
 
@@ -97,6 +97,7 @@ the test stops as soon as the evidence is strong enough either way.
 | Mop-up evaluation for won endgames | +12.5 ± 6.4 |
 | SPSA retune of 15 search constants for the 512 net (+5.4 ± 3.1 at 30+0.3) | +7.8 ± 4.5 |
 | SPSA tuning of 14 search constants (+10.8 ± 4.3 at 30+0.3) | +7.7 ± 4.7 |
+| 1024 net fine-tuned on 2.19B more Leela positions it had not seen | +7.2 ± 3.2 |
 | Node-share time management | +7.2 ± 4.3 |
 | Correction history for each side's non-pawn pieces | +5.5 ± 3.7 |
 | Transposition table in the quiescence search | +7.2 ± 4.3 |
@@ -150,7 +151,7 @@ best width lies for a given device ([docs/research/2026-10-08-nnue-scaling-study
 |---|---|
 | Engine (UCI, any GUI or lichess-bot) | `make` → `./engine` |
 | Tests | `make test` |
-| Bench signature | `./engine bench` → `2173993` nodes |
+| Bench signature | `./engine bench` → `2233806` nodes |
 | ESP32-S3 | `cd esp32 && pio run -e s3 -t upload`, then UCI over USB: `python tools/uci_bridge.py /dev/cu.usbmodemXXXX` |
 
 ## Layout
@@ -173,7 +174,7 @@ games or logs that back it.
 
 Credits, data and licences:
 
-- **Default net `nets/leela4-1024-l280.bin`:** 1024 hidden neurons, trained from scratch on 2.19B positions of Leela Chess Zero training data, as
+- **Default net `nets/ft1024-b.bin`:** 1024 hidden neurons, trained from scratch on 2.19B positions of Leela Chess Zero training data (S2 iter-1..4), then fine-tuned on 2.19B more (iter-5..8, learning rate 1e-4), as
   converted in [linrock/bullet-training-data](https://huggingface.co/datasets/linrock/bullet-training-data). Lc0 training
   data is under the **Open Database License (ODbL)**, and this net is a Produced Work from it. Scores were rescaled to the
   engine's centipawns (`EVAL_SCALE` = 1107.7). The previous defaults, `nets/leela4-512-l400.bin` (512 hidden, same data)
