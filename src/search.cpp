@@ -54,6 +54,7 @@ struct Searcher {
     Accumulator acc[MAX_PLY + 1];  // acc[ply] matches the board at that ply
     int eval_stack[MAX_PLY + 1];   // static eval per ply (-INF when in check)
     int16_t corr[2][CORRHIST_SIZE];  // pawn-structure correction history, scaled by 256
+    int16_t corr_cont[2][12 * 64];  // [side to move][previous move as piece * 64 + to] correction, scaled by 256
     int16_t corr_np[2][2][CORRHIST_SIZE];  // [side to move][piece colour] non-pawn placement correction, scaled by 256
     int16_t cont[CH][CH];            // continuation history [previous move][this move], each as piece * 64 + to
     int moved[MAX_PLY];              // the move made at each ply as piece * 64 + to; -1 for a null move
@@ -92,6 +93,7 @@ TUNABLE(ASP_DELTA, 19, 10, 60)        // first aspiration window half-width, cen
 TUNABLE(LMP_BASE, 5, 1, 8)            // late move pruning: quiet moves after LMP_BASE + depth^2 moves skipped (depth <= 8)
 TUNABLE(CORR_PAWN_W, 99, 32, 192)     // correction weights in 128ths: pawn-structure table...
 TUNABLE(CORR_NP_W, 54, 0, 128)        // ...and each side's non-pawn pieces table
+TUNABLE(CORR_CONT_W, 48, 0, 128)      // ...and the previous move's table
 std::atomic<bool> g_helpers_stop{false};  // set when the main thread has finished: helpers stop too
 
 uint64_t total_nodes() {
@@ -141,14 +143,21 @@ unsigned np_index(const Board& b, Color c) {
     return unsigned(k >> 40) & (CORRHIST_SIZE - 1);
 }
 
-int correction(const Board& b) {
-    const int stm = b.stm;
-    return (S->corr[stm][pawn_index(b)] * CORR_PAWN_W
-            + (S->corr_np[stm][WHITE][np_index(b, WHITE)] + S->corr_np[stm][BLACK][np_index(b, BLACK)]) * CORR_NP_W) / (128 * 256);
+// And per previous move (the piece that just moved and where to): replies the net misjudges after a given move.
+int16_t* cont_corr(int ply) {
+    return ply > 0 && S->moved[ply - 1] >= 0 ? &S->corr_cont[S->board.stm][S->moved[ply - 1]] : nullptr;
 }
 
-int corrected(int raw) {
-    return std::clamp(raw + correction(S->board), -MATE_BOUND + 1, MATE_BOUND - 1);
+int correction(const Board& b, int ply) {
+    const int stm = b.stm;
+    const int16_t* cc = cont_corr(ply);
+    return (S->corr[stm][pawn_index(b)] * CORR_PAWN_W
+            + (S->corr_np[stm][WHITE][np_index(b, WHITE)] + S->corr_np[stm][BLACK][np_index(b, BLACK)]) * CORR_NP_W
+            + (cc ? *cc : 0) * CORR_CONT_W) / (128 * 256);
+}
+
+int corrected(int raw, int ply) {
+    return std::clamp(raw + correction(S->board, ply), -MATE_BOUND + 1, MATE_BOUND - 1);
 }
 
 bool should_stop() {
@@ -255,7 +264,7 @@ int qsearch(int alpha, int beta, int ply) {
     int best = -INF, raw_eval = EVAL_NONE;
     if (!in_check) {  // stand pat
         raw_eval = tt_hit && tte.eval != EVAL_NONE ? tte.eval : eval_at(ply);
-        best = corrected(raw_eval);
+        best = corrected(raw_eval, ply);
         if (best >= beta) {
             if (!tt_hit) g_tt.store(S->board.key, NO_MOVE, 0, 0, BOUND_NONE, raw_eval);
             return best;
@@ -333,7 +342,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
 
     const int raw_eval = in_check ? -INF : tt_hit && tte.eval != EVAL_NONE ? tte.eval : eval_at(ply);
     if (!tt_hit && !in_check) g_tt.store(S->board.key, NO_MOVE, 0, 0, BOUND_NONE, raw_eval);  // early returns keep it
-    const int static_eval = in_check ? -INF : corrected(raw_eval);
+    const int static_eval = in_check ? -INF : corrected(raw_eval, ply);
     S->eval_stack[ply] = static_eval;
 
     // Reverse futility pruning: this far above beta near the leaves, assume the node fails high.
@@ -450,8 +459,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         const int w = std::min(depth + 1, 16), err = (best - raw_eval) * 256 * w;
         for (int16_t* c : {&S->corr[S->board.stm][pawn_index(S->board)],
                            &S->corr_np[S->board.stm][WHITE][np_index(S->board, WHITE)],
-                           &S->corr_np[S->board.stm][BLACK][np_index(S->board, BLACK)]})
-            *c = int16_t(std::clamp((*c * (256 - w) + err) / 256, -256 * 32, 256 * 32));
+                           &S->corr_np[S->board.stm][BLACK][np_index(S->board, BLACK)], cont_corr(ply)})
+            if (c) *c = int16_t(std::clamp((*c * (256 - w) + err) / 256, -256 * 32, 256 * 32));
     }
     g_tt.store(S->board.key, best_move, score_to_tt(best, ply), depth,
                best >= beta ? BOUND_LOWER : best > alpha0 ? BOUND_EXACT : BOUND_UPPER, in_check ? EVAL_NONE : raw_eval);
@@ -518,6 +527,7 @@ void clear_search_state() {
         std::memset(t.killers, 0, sizeof t.killers);
         std::memset(t.corr, 0, sizeof t.corr);
         std::memset(t.corr_np, 0, sizeof t.corr_np);
+        std::memset(t.corr_cont, 0, sizeof t.corr_cont);
         std::memset(t.cont, 0, sizeof t.cont);
     }
 }
