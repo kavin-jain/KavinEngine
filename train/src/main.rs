@@ -2,13 +2,15 @@
 // Inputs: 10 king buckets, horizontally mirrored, plus a shared 768 "factoriser" folded into every bucket at save
 // time (bullet examples/progression/3_input_buckets.rs). The engine's src/nnue.cpp mirrors KB_LAYOUT exactly.
 // Output: 8 buckets by piece count (MaterialCount<8>, engine NNUE_OUTPUT_BUCKETS=8).
+// ARCH=ml: the multi-layer net instead (bullet examples/progression/4_multi_layer.rs): feature transformer -> CReLU
+// pairwise product (N/2 per side) -> L1 N -> 16 (i8) -> SCReLU -> L2 16 -> 32 -> SCReLU -> L3 32 -> 1, per output bucket.
 // Usage: train <hidden: 128|256> <superbatches> <net_id> <data_dir> [measure]
 use bullet_lib::{
     game::{
         inputs::{ChessBucketsMirrored, get_num_buckets},
         outputs::MaterialCount,
     },
-    nn::{InitSettings, Shape, optimiser::AdamW},
+    nn::{InitSettings, Shape, optimiser::{AdamW, AdamWParams}},
     trainer::{
         save::SavedFormat,
         schedule::{TrainingSchedule, TrainingSteps, lr, wdl},
@@ -33,6 +35,8 @@ const NUM_OB: usize = 8;
 const SCALE: i32 = 400;
 const QA: i16 = 255;
 const QB: i16 = 64;
+const QL1: i8 = 64;      // multi-layer net: L1 weights as i8 at this scale
+const L2: usize = 16;    // multi-layer net: L1 outputs per output bucket (then 32, then 1)
 
 // Six fixed positions (opening -> pawn endgame); their float evals become the engine's cross-check fixture.
 const CHECK_FENS: [&str; 6] = [
@@ -58,34 +62,6 @@ fn main() {
     // Score units per our centipawn x 400: data labelled in other units (e.g. Stockfish-internal, Leela-derived) is
     // trained with EVAL_SCALE = 400 * (its WDL scale / ours), from `lichess_convert wdlfit`, so outputs stay in our cp.
     let eval_scale: f32 = std::env::var("EVAL_SCALE").map(|v| v.parse().expect("EVAL_SCALE")).unwrap_or(SCALE as f32);
-
-    let mut trainer = ValueTrainerBuilder::default()
-        .dual_perspective()
-        .optimiser(AdamW)
-        .inputs(ChessBucketsMirrored::new(KB_LAYOUT))
-        .output_buckets(MaterialCount::<NUM_OB>)
-        .save_format(&[
-            SavedFormat::id("l0w")
-                .transform(|store, weights| {
-                    let factoriser = store.get("l0f").values.f32().repeat(NUM_KB);
-                    weights.into_iter().zip(factoriser).map(|(a, b)| a + b).collect()
-                })
-                .round()
-                .quantise::<i16>(QA),
-            SavedFormat::id("l0b").round().quantise::<i16>(QA),
-            SavedFormat::id("l1w").round().quantise::<i16>(QB).transpose(),  // [bucket][2N]
-            SavedFormat::id("l1b").round().quantise::<i16>(QA * QB),
-        ])
-        .loss_fn(|output, target| output.sigmoid().squared_error(target))
-        .build(|builder, stm_inputs, ntm_inputs, output_buckets| {
-            let l0f = builder.new_weights("l0f", Shape::new(hidden, 768), InitSettings::Zeroed);
-            let mut l0 = builder.new_affine("l0", 768 * NUM_KB, hidden);
-            l0.weights = l0.weights + l0f.repeat(NUM_KB);
-            let l1 = builder.new_affine("l1", 2 * hidden, NUM_OB);
-            let stm_hidden = l0.forward(stm_inputs).screlu();
-            let ntm_hidden = l0.forward(ntm_inputs).screlu();
-            l1.forward(stm_hidden.concat(ntm_hidden)).select(output_buckets)
-        });
 
     let schedule = TrainingSchedule {
         net_id: net_id.clone(),
@@ -120,15 +96,93 @@ fn main() {
         batch_queue_size: 64,
     };
     let data_loader = loader::DirectSequentialDataLoader::new(&refs);
-    if let Ok(init) = std::env::var("INIT") {
-        trainer.load_from_checkpoint(&init);
+    // The rest is the same for both architectures (their trainers are different types).
+    macro_rules! train_and_check {
+        ($trainer:ident) => {{
+            if let Ok(init) = std::env::var("INIT") {
+                $trainer.load_from_checkpoint(&init);
+            }
+            $trainer.run(&schedule, &settings, &data_loader);
+            // Float reference evals (centipawns, side-to-move relative) for the engine's quantised cross-check.
+            let mut out = String::new();
+            for fen in CHECK_FENS {
+                out += &format!("{fen}|{:.2}\n", $trainer.eval(fen) * SCALE as f32);
+            }
+            std::fs::write(format!("checkpoints/{net_id}.evals.txt"), out).expect("write evals");
+        }};
     }
-    trainer.run(&schedule, &settings, &data_loader);
-
-    // Float reference evals (centipawns, side-to-move relative) for the engine's quantised cross-check.
-    let mut out = String::new();
-    for fen in CHECK_FENS {
-        out += &format!("{fen}|{:.2}\n", trainer.eval(fen) * SCALE as f32);
+    if std::env::var("ARCH").is_ok_and(|a| a == "ml") {
+        let mut trainer = ValueTrainerBuilder::default()
+            .dual_perspective()
+            .optimiser(AdamW)
+            .inputs(ChessBucketsMirrored::new(KB_LAYOUT))
+            .output_buckets(MaterialCount::<NUM_OB>)
+            .save_format(&[
+                SavedFormat::id("l0w")
+                    .transform(|store, weights| {
+                        let factoriser = store.get("l0f").values.f32().repeat(NUM_KB);
+                        weights.into_iter().zip(factoriser).map(|(a, b)| a + b).collect()
+                    })
+                    .round()
+                    .quantise::<i16>(QA),
+                SavedFormat::id("l0b").round().quantise::<i16>(QA),
+                SavedFormat::id("l1w").transpose().round().quantise::<i8>(QL1),  // [bucket * 16 + j][N]
+                SavedFormat::id("l1b"),              // f32 [bucket * 16 + j]
+                SavedFormat::id("l2w").transpose(),  // f32 [bucket * 32 + k][16]
+                SavedFormat::id("l2b"),              // f32 [bucket * 32 + k]
+                SavedFormat::id("l3w").transpose(),  // f32 [bucket][32]
+                SavedFormat::id("l3b"),              // f32 [bucket]
+            ])
+            .loss_fn(|output, target| output.sigmoid().squared_error(target))
+            .build(|builder, stm_inputs, ntm_inputs, output_buckets| {
+                let l0f = builder.new_weights("l0f", Shape::new(hidden, 768), InitSettings::Zeroed);
+                let mut l0 = builder.new_affine("l0", 768 * NUM_KB, hidden);
+                l0.init_with_effective_input_size(32);
+                l0.weights = l0.weights + l0f.repeat(NUM_KB);
+                let l1 = builder.new_affine("l1", hidden, NUM_OB * L2);
+                let l2 = builder.new_affine("l2", L2, NUM_OB * 32);
+                let l3 = builder.new_affine("l3", 32, NUM_OB);
+                // CReLU pairwise product: neuron i times neuron i + N/2, per side.
+                let ft = |input, a, b| l0.slice(a, b).forward(input).crelu();
+                let stm_hidden = ft(stm_inputs, 0, hidden / 2) * ft(stm_inputs, hidden / 2, hidden);
+                let ntm_hidden = ft(ntm_inputs, 0, hidden / 2) * ft(ntm_inputs, hidden / 2, hidden);
+                let hl2 = l1.forward(stm_hidden.concat(ntm_hidden)).select(output_buckets).screlu();
+                let hl3 = l2.forward(hl2).select(output_buckets).screlu();
+                l3.forward(hl3).select(output_buckets)
+            });
+        // The factoriser is added to every bucket's weights at save time: clip both so the sum fits i16 at QA.
+        let stricter = AdamWParams { max_weight: 0.99, min_weight: -0.99, ..Default::default() };
+        trainer.optimiser.set_params_for_weight("l0w", stricter);
+        trainer.optimiser.set_params_for_weight("l0f", stricter);
+        train_and_check!(trainer);
+    } else {
+        let mut trainer = ValueTrainerBuilder::default()
+            .dual_perspective()
+            .optimiser(AdamW)
+            .inputs(ChessBucketsMirrored::new(KB_LAYOUT))
+            .output_buckets(MaterialCount::<NUM_OB>)
+            .save_format(&[
+                SavedFormat::id("l0w")
+                    .transform(|store, weights| {
+                        let factoriser = store.get("l0f").values.f32().repeat(NUM_KB);
+                        weights.into_iter().zip(factoriser).map(|(a, b)| a + b).collect()
+                    })
+                    .round()
+                    .quantise::<i16>(QA),
+                SavedFormat::id("l0b").round().quantise::<i16>(QA),
+                SavedFormat::id("l1w").round().quantise::<i16>(QB).transpose(),  // [bucket][2N]
+                SavedFormat::id("l1b").round().quantise::<i16>(QA * QB),
+            ])
+            .loss_fn(|output, target| output.sigmoid().squared_error(target))
+            .build(|builder, stm_inputs, ntm_inputs, output_buckets| {
+                let l0f = builder.new_weights("l0f", Shape::new(hidden, 768), InitSettings::Zeroed);
+                let mut l0 = builder.new_affine("l0", 768 * NUM_KB, hidden);
+                l0.weights = l0.weights + l0f.repeat(NUM_KB);
+                let l1 = builder.new_affine("l1", 2 * hidden, NUM_OB);
+                let stm_hidden = l0.forward(stm_inputs).screlu();
+                let ntm_hidden = l0.forward(ntm_inputs).screlu();
+                l1.forward(stm_hidden.concat(ntm_hidden)).select(output_buckets)
+            });
+        train_and_check!(trainer);
     }
-    std::fs::write(format!("checkpoints/{net_id}.evals.txt"), out).expect("write evals");
 }

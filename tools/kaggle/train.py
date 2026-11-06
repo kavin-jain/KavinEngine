@@ -148,6 +148,7 @@ for net, hidden, sbs, wdl, data, init, lr in JOBS:
     env = f"WDL={wdl} LR={lr}" + (f" INIT={T}/checkpoints/{init}" if init else "") + \
         (f" SHARDS={net.split('-s')[-1]}" if "-s" in net and net.split('-s')[-1].isdigit() else "")  # e.g. grid-w64-s8
     if data in CALIBRATED: env += f" EVAL_SCALE={ready['scale', data]:.1f}"
+    if net.startswith("ml"): env += " ARCH=ml"  # multi-layer net (train/src/main.rs)
     # Full log to a file; one line per superbatch to stdout, visible live via `kaggle kernels logs -f`.
     sh(f"set -o pipefail; cd {T} && {env} target/release/train {hidden} {sbs} {net} {ready[data]} 2>&1 | tee {log} | "
        f"stdbuf -oL tr '\\r' '\\n' | grep --line-buffered -a 'running loss'")
