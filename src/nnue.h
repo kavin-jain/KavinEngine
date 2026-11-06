@@ -13,6 +13,9 @@ constexpr int NNUE_INPUTS = 768 * (NNUE_KING_BUCKETS ? NNUE_KING_BUCKETS : 1);
 #ifndef NNUE_OUTPUT_BUCKETS
 #define NNUE_OUTPUT_BUCKETS 1  // 1: single output (m2/m3 nets); 8: bullet MaterialCount<8>, chosen by piece count
 #endif
+#ifndef NNUE_ML
+#define NNUE_ML 0  // 1: multi-layer net (nnue.cpp)
+#endif
 constexpr int NNUE_QA = 255, NNUE_QB = 64, NNUE_SCALE = 400;
 
 struct alignas(64) Accumulator { int16_t v[2][NNUE_HIDDEN]; };  // [perspective colour][neuron]

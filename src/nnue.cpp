@@ -12,6 +12,15 @@ const int16_t* B0 = nullptr;  // [N], QA
 const int16_t* W1 = nullptr;  // [OB][2N], QB: per output bucket, first N for side to move, next N for the other side
 const int16_t* B1 = nullptr;  // [OB], QA * QB
 constexpr int OB = NNUE_OUTPUT_BUCKETS;
+#if NNUE_ML
+// Multi-layer net after the feature transformer (trainer ARCH=ml): per side the CReLU pairwise product of neurons i and
+// i + N/2 (N/2 values, side to move first), then per output bucket L1 N -> 16 (i8 weights at QL1), SCReLU, L2 16 -> 32,
+// SCReLU, L3 32 -> 1 (float). The file keeps bullet's layout: l1w [OB*16][N] i8, then f32 l1b, l2w [OB*32][16], l2b,
+// l3w [OB][32], l3b.
+constexpr int L1 = 16, L2 = 32, QL1 = 64;
+const int8_t* ML1W = nullptr;
+const float *ML1B = nullptr, *ML2W = nullptr, *ML2B = nullptr, *ML3W = nullptr, *ML3B = nullptr;
+#endif
 
 #if NNUE_KING_BUCKETS
 // King bucket per square of the mirrored half-board (rank-major, files a-d): train/src/main.rs KB_LAYOUT.
@@ -49,7 +58,12 @@ SEARCH_TLS FinnyEntry finny[2][NNUE_KING_BUCKETS][2];  // per search thread
 }  // namespace
 
 size_t nnue_expected_size() {
+#if NNUE_ML
+    const size_t raw = size_t(NNUE_INPUTS * N + N) * sizeof(int16_t) + size_t(OB * L1 * N)
+                     + size_t(OB * L1 + OB * L2 * L1 + OB * L2 + OB * L2 + OB) * sizeof(float);
+#else
     const size_t raw = size_t(NNUE_INPUTS * N + N + OB * (2 * N + 1)) * sizeof(int16_t);
+#endif
     return (raw + 63) / 64 * 64;
 }
 
@@ -63,8 +77,19 @@ bool nnue_load(const unsigned char* data, size_t size) {
     int m0 = 0, mb = 0, m1 = 0;
     for (int i = 0; i < NNUE_INPUTS * N; ++i) m0 = std::max(m0, std::abs(int(w0[i])));
     for (int i = 0; i < N; ++i) mb = std::max(mb, std::abs(int(b0[i])));
+#if NNUE_ML
+    (void)w1; (void)m1;  // L1 weights are i8 by format; the int32 L1 sum is bounded in nnue_evaluate
+    if (mb + 32 * m0 > INT16_MAX) return false;
+    ML1W = reinterpret_cast<const int8_t*>(b0 + N);
+    ML1B = reinterpret_cast<const float*>(ML1W + OB * L1 * N);
+    ML2W = ML1B + OB * L1;
+    ML2B = ML2W + OB * L2 * L1;
+    ML3W = ML2B + OB * L2;
+    ML3B = ML3W + OB * L2;
+#else
     for (int i = 0; i < OB * 2 * N; ++i) m1 = std::max(m1, std::abs(int(w1[i])));
     if (mb + 32 * m0 > INT16_MAX || m1 > 127) return false;
+#endif
     W0 = w0;
     B0 = b0;
 #if NNUE_KING_BUCKETS
@@ -163,6 +188,37 @@ static int64_t screlu_dot(const int16_t* __restrict a, const int16_t* __restrict
 int nnue_evaluate(const Accumulator& acc, Color stm, int pieces) {
     constexpr int DIV = (32 + OB - 1) / OB;  // bullet MaterialCount<OB>: bucket = (pieces - 2) / ceil(32 / OB)
     const int ob = (pieces - 2) / DIV;
+#if NNUE_ML
+    // Pairwise products a * b (each clamped to [0, QA]) shifted down 8 bits fit a byte, so the L1 sum stays in int32:
+    // 1024 * 254 * 127 < 2^31. The float trainer's value is p * 256 / QA^2.
+    alignas(64) uint8_t p[N];
+    for (int side = 0; side < 2; ++side) {
+        const int16_t* a = acc.v[side == 0 ? stm : ~stm];
+        for (int i = 0; i < N / 2; ++i) {
+            const int x = std::clamp<int>(a[i], 0, NNUE_QA), y = std::clamp<int>(a[i + N / 2], 0, NNUE_QA);
+            p[side * (N / 2) + i] = uint8_t((x * y) >> 8);
+        }
+    }
+    float h1[L1], h2[L2];
+    constexpr float L1_SCALE = 256.0f / (float(NNUE_QA) * NNUE_QA * QL1);
+    for (int j = 0; j < L1; ++j) {
+        const int8_t* w = ML1W + (ob * L1 + j) * N;
+        int32_t sum = 0;
+        for (int i = 0; i < N; ++i) sum += int16_t(p[i]) * int16_t(w[i]);
+        const float z = std::clamp(float(sum) * L1_SCALE + ML1B[ob * L1 + j], 0.0f, 1.0f);
+        h1[j] = z * z;
+    }
+    for (int k = 0; k < L2; ++k) {
+        const float* w = ML2W + (ob * L2 + k) * L1;
+        float z = ML2B[ob * L2 + k];
+        for (int j = 0; j < L1; ++j) z += h1[j] * w[j];
+        z = std::clamp(z, 0.0f, 1.0f);
+        h2[k] = z * z;
+    }
+    float out = ML3B[ob];
+    for (int k = 0; k < L2; ++k) out += h2[k] * ML3W[ob * L2 + k];
+    return int(out * NNUE_SCALE);
+#endif
     const int16_t* w = W1 + ob * 2 * N;
     const int64_t sum = screlu_dot(acc.v[stm], w) + screlu_dot(acc.v[~stm], w + N);
     const int64_t out = sum / NNUE_QA + B1[ob];

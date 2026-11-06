@@ -13,6 +13,7 @@ static Accumulator A, R, Stack[512];
 
 TEST(nnue_loaded) { CHECK(nnue_ready()); }
 
+#if !NNUE_ML  // the multi-layer net's L1 weights are i8 by format: nothing to range-check
 TEST(nnue_rejects_out_of_range_weights) {  // the int16/int32 arithmetic is only exact for |W1| <= 127
     std::vector<unsigned char> bad(NNUE_DATA, NNUE_DATA + NNUE_DATA_SIZE);
     int16_t w = 128;
@@ -20,6 +21,7 @@ TEST(nnue_rejects_out_of_range_weights) {  // the int16/int32 arithmetic is only
     CHECK(!nnue_load(bad.data(), bad.size()));
     CHECK(nnue_load(NNUE_DATA, NNUE_DATA_SIZE));
 }
+#endif
 
 TEST(incremental_matches_refresh) {  // random playouts hit captures, castling, promotions, en passant
     uint64_t s = 99;
