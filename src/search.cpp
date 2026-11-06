@@ -348,8 +348,9 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
     }
 
     // Null-move pruning: if passing still fails high, this node is very likely a cut-node.
+    // Not when the TT already holds an upper bound below beta: the reduced null search would only confirm the fail-low.
     if (!pv_node && !in_check && null_ok && excluded == NO_MOVE && depth >= 3 && S->board.has_non_pawn_material(S->board.stm)
-        && static_eval >= beta) {
+        && static_eval >= beta && !(tt_hit && tte.bound == BOUND_UPPER && score_from_tt(tte.score, ply) < beta)) {
         S->moved[ply] = -1;
         S->board.make_null();
         S->acc[ply + 1] = S->acc[ply];
