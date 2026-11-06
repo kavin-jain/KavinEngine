@@ -335,21 +335,27 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
     if (!tt_hit && !in_check) g_tt.store(S->board.key, NO_MOVE, 0, 0, BOUND_NONE, raw_eval);  // early returns keep it
     const int static_eval = in_check ? -INF : corrected(raw_eval);
     S->eval_stack[ply] = static_eval;
+    // A TT score whose bound points away from the static eval is a better estimate for the pruning tests below.
+    int eval = static_eval;
+    if (tt_hit && !in_check) {
+        const int s = score_from_tt(tte.score, ply);
+        if (std::abs(s) < MATE_BOUND && (tte.bound & (s > static_eval ? BOUND_LOWER : BOUND_UPPER))) eval = s;
+    }
 
     // Reverse futility pruning: this far above beta near the leaves, assume the node fails high.
-    if (!pv_node && !in_check && excluded == NO_MOVE && depth <= RFP_DEPTH && std::abs(beta) < MATE_BOUND && static_eval - RFP_MARGIN * depth >= beta)
-        return static_eval;
+    if (!pv_node && !in_check && excluded == NO_MOVE && depth <= RFP_DEPTH && std::abs(beta) < MATE_BOUND && eval - RFP_MARGIN * depth >= beta)
+        return eval;
 
     // Razoring: this far below alpha near the leaves, only captures could help; quiescence search decides.
     if (!pv_node && !in_check && excluded == NO_MOVE && depth <= 3 && std::abs(alpha) < MATE_BOUND
-        && static_eval + RAZOR_MARGIN * depth <= alpha) {
+        && eval + RAZOR_MARGIN * depth <= alpha) {
         const int s = qsearch(alpha, alpha + 1, ply);
         if (s <= alpha) return s;
     }
 
     // Null-move pruning: if passing still fails high, this node is very likely a cut-node.
     if (!pv_node && !in_check && null_ok && excluded == NO_MOVE && depth >= 3 && S->board.has_non_pawn_material(S->board.stm)
-        && static_eval >= beta) {
+        && eval >= beta) {
         S->moved[ply] = -1;
         S->board.make_null();
         S->acc[ply + 1] = S->acc[ply];
@@ -396,7 +402,7 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         // ...and quiet moves that hang the moved piece (decided below, after make(), so checks are kept).
         // Futility pruning: a quiet move cannot lift this static eval above alpha so close to the leaves. Checks are
         // kept (they may mate), so the check test runs after make(); a futile move needs no SEE (both prunes need !check).
-        const bool futile = !pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 6 && static_eval + FUT_BASE + FUT_MARGIN * depth <= alpha;
+        const bool futile = !pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 6 && eval + FUT_BASE + FUT_MARGIN * depth <= alpha;
         const bool quiet_hangs = !futile && quiet && !pv_node && !in_check && best > -MATE_BOUND && depth <= 8 && !see_ge(S->board, m, -SEE_QUIET * depth);
         S->moved[ply] = move_key(m);
         if (!S->board.make(m)) continue;
