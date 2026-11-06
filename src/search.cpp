@@ -416,7 +416,10 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
             if (depth >= 3 && legal > 3 && quiet && !in_check && !S->board.in_check())
                 r = std::max(0, std::min<int>(LMR[std::min(depth, 63)][std::min(legal, 63)] + cutnode, new_depth - 1));
             score = -negamax(-alpha - 1, -alpha, new_depth - r, ply + 1, true, true);
-            if (score > alpha && r > 0) score = -negamax(-alpha - 1, -alpha, new_depth, ply + 1, true, !cutnode);
+            if (score > alpha && r > 0) {  // the reduced search beat alpha: re-search, deeper if it won by a lot
+                const int d = new_depth + (score > best + 40 + 2 * new_depth) - (score < best + 10);
+                score = -negamax(-alpha - 1, -alpha, d, ply + 1, true, !cutnode);
+            }
             if (score > alpha && score < beta) score = -negamax(-beta, -alpha, new_depth, ply + 1, true, false);
         }
         S->board.unmake(m);
