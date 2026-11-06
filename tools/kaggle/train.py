@@ -72,15 +72,18 @@ def leela():  # Leela-derived positions (linrock/bullet-training-data on Hugging
     return shard("leela", ["/tmp/leela-raw/l.bin"])
 
 
-def leela_stream(iters):  # several S2 files, streamed download -> zstd -> shard: no 17 GB raw file per iteration on disk
-    d = f"/tmp/leela-s2-{'-'.join(map(str, iters))}"
+S2_NAME = "test77nov-unfilt-test79-maraprmay-v6-dd.skip-see-ge0.wdl-pdist.iter-{i}.bullet.bin.zst"
+
+
+def leela_stream(iters, folder="S2", name=S2_NAME):  # streamed download -> zstd -> shard: no raw file on disk
+    d = f"/tmp/leela-{folder.lower()}-{'-'.join(map(str, iters))}"
     os.makedirs(d, exist_ok=True)
     sh("pip install -q zstandard && make -C /tmp/ke -s convert")
     for i in iters:
         if shutil.disk_usage(d).free < 25e9:  # each file adds ~17 GB of shards; train on what fits
             print(f"disk nearly full: stopping before iter-{i}", flush=True); break
-        f = f"test77nov-unfilt-test79-maraprmay-v6-dd.skip-see-ge0.wdl-pdist.iter-{i}.bullet.bin.zst"
-        sh(f"set -o pipefail; curl -sSfL https://huggingface.co/datasets/linrock/bullet-training-data/resolve/main/S2/{f} | "
+        f = name.format(i=i)
+        sh(f"set -o pipefail; curl -sSfL https://huggingface.co/datasets/linrock/bullet-training-data/resolve/main/{folder}/{f} | "
            "python3 -c 'import sys, zstandard; zstandard.ZstdDecompressor().copy_stream(sys.stdin.buffer, sys.stdout.buffer)' | "
            f"/tmp/ke/build/lichess_convert shard {d} /dev/stdin")  # shard appends, so the files mix at random
     sh(f"/tmp/ke/build/lichess_convert shuffle {d}/*.bin && du -sh {d} && df -h /tmp")
@@ -111,10 +114,11 @@ DATA = {"lichess": lichess, "sp1": lambda: selfplay(("sp1", 6)), "sp2": lambda: 
         "leela4": lambda: leela_stream((1, 2, 3, 4)),
         "leela58": lambda: leela_stream((5, 6, 7, 8)),  # positions the leela4 nets never saw (fine-tunes)
         "leela912": lambda: leela_stream((9, 10, 11, 12)),  # the next unseen block (second fine-tune stage)
+        "s1-12": lambda: leela_stream((1, 2), "S1", "UHO.pdist.iter-{i}.bullet.bin.zst"),  # S1 (UHO openings), ~2.4B
         "sp2-hard25": lambda: selected("sp2", "select", 0.25), "sp2-rand25": lambda: selected("sp2", "random", 0.25),
         **{t: (lambda t=t: selfplay((t, 12))) for t in ("rl-none", "rl-sf19", "rl-leela", "sp3-25k")}}
 # Labels from another engine or search depth: EVAL_SCALE maps them to the main net's cp (the same rule for every arm).
-CALIBRATED = {"leela", "leela2", "leela4", "leela58", "leela912", "rl-none", "rl-sf19", "rl-leela", "sp3-25k"}
+CALIBRATED = {"leela", "leela2", "leela4", "leela58", "leela912", "s1-12", "rl-none", "rl-sf19", "rl-leela", "sp3-25k"}
 def fetch_init(init):  # "<release tag>:<checkpoint dir>": a checkpoint an earlier run kept, as <dir>.tar or .tar.gz
     tag, name = init.split(":")
     for ext in (".tar", ".tar.gz"):
