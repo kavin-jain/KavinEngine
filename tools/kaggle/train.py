@@ -113,12 +113,13 @@ DATA = {"lichess": lichess, "sp1": lambda: selfplay(("sp1", 6)), "sp2": lambda: 
         "own": lambda: selfplay(("sp1", 6), ("sp2", 16)), "leela": leela, "leela2": lambda: leela_stream((1, 2)),
         "leela4": lambda: leela_stream((1, 2, 3, 4)),
         "leela58": lambda: leela_stream((5, 6, 7, 8)),  # positions the leela4 nets never saw (fine-tunes)
+        "leela8": lambda: leela_stream(tuple(range(1, 9))),  # S2 iter-1..8, ~4.4B positions (wider nets from scratch)
         "leela912": lambda: leela_stream((9, 10, 11, 12)),  # the next unseen block (second fine-tune stage)
         "s1-12": lambda: leela_stream((1, 2), "S1", "UHO.pdist.iter-{i}.bullet.bin.zst"),  # S1 (UHO openings), ~2.4B
         "sp2-hard25": lambda: selected("sp2", "select", 0.25), "sp2-rand25": lambda: selected("sp2", "random", 0.25),
         **{t: (lambda t=t: selfplay((t, 12))) for t in ("rl-none", "rl-sf19", "rl-leela", "sp3-25k")}}
 # Labels from another engine or search depth: EVAL_SCALE maps them to the main net's cp (the same rule for every arm).
-CALIBRATED = {"leela", "leela2", "leela4", "leela58", "leela912", "s1-12", "rl-none", "rl-sf19", "rl-leela", "sp3-25k"}
+CALIBRATED = {"leela", "leela2", "leela4", "leela58", "leela912", "s1-12", "leela8", "rl-none", "rl-sf19", "rl-leela", "sp3-25k"}
 def fetch_init(init):  # "<release tag>:<checkpoint dir>": a checkpoint an earlier run kept, as <dir>.tar or .tar.gz
     tag, name = init.split(":")
     for ext in (".tar", ".tar.gz"):
