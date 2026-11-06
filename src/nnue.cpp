@@ -20,6 +20,8 @@ constexpr int OB = NNUE_OUTPUT_BUCKETS;
 constexpr int L1 = 16, L2 = 32, QL1 = 64;
 const int8_t* ML1W = nullptr;
 const float *ML1B = nullptr, *ML2W = nullptr, *ML2B = nullptr, *ML3W = nullptr, *ML3B = nullptr;
+// L1 weights transposed at load to [bucket][input][output]: the sparse L1 adds one 16-wide row per nonzero input.
+alignas(64) static int8_t ML1WT[OB][N][L1];
 #endif
 
 #if NNUE_KING_BUCKETS
@@ -81,6 +83,9 @@ bool nnue_load(const unsigned char* data, size_t size) {
     (void)w1; (void)m1;  // L1 weights are i8 by format; the int32 L1 sum is bounded in nnue_evaluate
     if (mb + 32 * m0 > INT16_MAX) return false;
     ML1W = reinterpret_cast<const int8_t*>(b0 + N);
+    for (int ob = 0; ob < OB; ++ob)
+        for (int j = 0; j < L1; ++j)
+            for (int i = 0; i < N; ++i) ML1WT[ob][i][j] = ML1W[(ob * L1 + j) * N + i];
     ML1B = reinterpret_cast<const float*>(ML1W + OB * L1 * N);
     ML2W = ML1B + OB * L1;
     ML2B = ML2W + OB * L2 * L1;
@@ -199,13 +204,21 @@ int nnue_evaluate(const Accumulator& acc, Color stm, int pieces) {
             p[side * (N / 2) + i] = uint8_t((x * y) >> 8);
         }
     }
+    // Sparse L1: most products are 0 (a clamped neuron zeroes its pair), so list the nonzero inputs (branch-free) and
+    // add only their weight rows. Integer sums are exact, so the result equals the dense dot product.
+    uint16_t nz[N];
+    int n_nz = 0;
+    for (int i = 0; i < N; ++i) { nz[n_nz] = uint16_t(i); n_nz += p[i] != 0; }
+    int32_t sum[L1] = {};
+    for (int k = 0; k < n_nz; ++k) {
+        const int x = p[nz[k]];
+        const int8_t* w = ML1WT[ob][nz[k]];
+        for (int j = 0; j < L1; ++j) sum[j] += x * w[j];
+    }
     float h1[L1], h2[L2];
     constexpr float L1_SCALE = 256.0f / (float(NNUE_QA) * NNUE_QA * QL1);
     for (int j = 0; j < L1; ++j) {
-        const int8_t* w = ML1W + (ob * L1 + j) * N;
-        int32_t sum = 0;
-        for (int i = 0; i < N; ++i) sum += int16_t(p[i]) * int16_t(w[i]);
-        const float z = std::clamp(float(sum) * L1_SCALE + ML1B[ob * L1 + j], 0.0f, 1.0f);
+        const float z = std::clamp(float(sum[j]) * L1_SCALE + ML1B[ob * L1 + j], 0.0f, 1.0f);
         h1[j] = z * z;
     }
     for (int k = 0; k < L2; ++k) {
