@@ -10,7 +10,7 @@ import argparse, json, math, pathlib, subprocess, sys, time
 # anchor whose UCI "id name" lacks id_contains (GitHub tag v31.0 of Stash reported "v30.15", so it was dropped).
 ANCHOR_FILE = pathlib.Path(__file__).with_name("anchors.json")
 ANCHOR_LIST = json.loads(ANCHOR_FILE.read_text())
-ANCHORS = {a["name"]: a["rating"] for a in ANCHOR_LIST}
+ANCHORS = {a["name"]: a["rating"] for a in ANCHOR_LIST if a.get("rating")}  # unrated (Lc0 on CPU): head-to-head only
 
 
 def expected(d):
@@ -42,7 +42,9 @@ def main():
     ap.add_argument("id", nargs="?"); ap.add_argument("ref", nargs="?")
     ap.add_argument("--tc", default="60+0.6"); ap.add_argument("--rounds", type=int, default=10)
     ap.add_argument("--jobs", type=int, default=8); ap.add_argument("--selftest", action="store_true")
-    ap.add_argument("--anchors", default="", help="comma-separated anchor names (default: all in tools/anchors.json)")
+    ap.add_argument("--anchors", default="", help="comma-separated anchor names (default: every rated one in tools/anchors.json)")
+    ap.add_argument("--concurrency", type=int, default=3)
+    ap.add_argument("--options", default="", help="our engine's fastchess options, e.g. option.Threads=2")
     a = ap.parse_args()
     if a.selftest:  # an engine at 3000 with exactly expected scores must fit back to 3000
         res = {t: {"w": 0, "d": 0, "l": 0} for t in ANCHORS}
@@ -62,7 +64,7 @@ def main():
         names = a.anchors.split(",") if a.anchors else list(ANCHORS)
         spec = json.dumps([x for x in ANCHOR_LIST if x["name"] in names], separators=(",", ":"))
         subprocess.run(["gh", "workflow", "run", "gauntlet.yml", "-f", f"id={a.id}", "-f", f"ref={ref}", "-f", f"tc={a.tc}",
-                        "-f", f"anchors={spec}",
+                        "-f", f"anchors={spec}", "-f", f"concurrency={a.concurrency}", "-f", f"options={a.options}",
                         "-f", f"rounds={a.rounds}", "-f", "jobs=" + json.dumps(list(range(1, a.jobs + 1)))], check=True)
         for _ in range(30):
             time.sleep(10)
@@ -80,14 +82,19 @@ def main():
         for t, r in json.loads(f.read_text()).items():
             m = merged.setdefault(t, {"w": 0, "d": 0, "l": 0, "time_losses": 0})
             for k in m: m[k] += r[k]
-    R, ci = fit(merged)
-    lines = [f"gauntlet {a.id} ({ref[:7]}, tc {a.tc}, book 8moves_v3, {len(files)}/{a.jobs} jobs)"]
+    lines = [f"gauntlet {a.id} ({ref[:7]}, tc {a.tc}, {a.options or 'default options'}, book 8moves_v3, {len(files)}/{a.jobs} jobs)"]
     for t, r in sorted(merged.items()):
         n = r["w"] + r["d"] + r["l"]; s = (r["w"] + 0.5 * r["d"]) / n
-        perf = ANCHORS[t] + 400 * math.log10(s / (1 - s)) if 0 < s < 1 else float("nan")
-        lines.append(f"  vs {t} ({ANCHORS[t]}): +{r['w']} ={r['d']} -{r['l']} score {100 * s:.1f}% "
-                     f"perf {perf:.0f} time losses {r['time_losses']}")
-    lines.append(f"RESULT {a.id}: CCRL Blitz-anchored rating {R:.0f} ± {ci:.0f} over {sum(sum(v[k] for k in 'wdl') for v in merged.values())} games")
+        diff = 400 * math.log10(s / (1 - s)) if 0 < s < 1 else float("nan")  # our Elo minus theirs
+        lines.append(f"  vs {t} ({ANCHORS.get(t, 'unrated')}): +{r['w']} ={r['d']} -{r['l']} score {100 * s:.1f}% "
+                     f"Elo diff {diff:+.0f}" + (f" perf {ANCHORS[t] + diff:.0f}" if t in ANCHORS else "") +
+                     f" time losses {r['time_losses']}")
+    games = sum(sum(v[k] for k in 'wdl') for v in merged.values())
+    if any(t in ANCHORS for t in merged):
+        R, ci = fit(merged)
+        lines.append(f"RESULT {a.id}: CCRL Blitz-anchored rating {R:.0f} ± {ci:.0f} over {games} games")
+    else:
+        lines.append(f"RESULT {a.id}: head-to-head only (no rated anchor), {games} games")
     (out / "summary.log").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
 

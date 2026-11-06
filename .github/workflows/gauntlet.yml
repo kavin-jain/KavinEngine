@@ -12,6 +12,7 @@ on:
       rounds: {description: "rounds per job (each round: 2 games vs every anchor)", default: "10"}
       concurrency: {description: "games at once per job", default: "3"}
       jobs: {description: "JSON list of job numbers", default: "[1,2,3,4,5,6,7,8]"}
+      options: {description: "our engine's fastchess options, e.g. option.Threads=2", default: ""}
 
 permissions:
   contents: read
@@ -72,7 +73,7 @@ jobs:
         run: |
           args=""
           for t in $(cat anchors-ok.txt); do args="$args -engine cmd=./$t name=$t"; done
-          ./fastchess-bin -engine cmd=ours/engine name=KavinEngine $args \
+          ./fastchess-bin -engine cmd=ours/engine name=KavinEngine ${{ inputs.options }} $args \
             -each tc=${{ inputs.tc }} option.Hash=16 -tournament gauntlet -seeds 1 \
             -openings file=8moves_v3.pgn format=pgn order=random -srand $(( ${{ github.run_id }} % 100000 * 100 + ${{ matrix.job }} )) \
             -rounds ${{ inputs.rounds }} -games 2 -repeat -concurrency ${{ inputs.concurrency }} \

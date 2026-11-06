@@ -138,5 +138,15 @@
   "id_contains": "Alexandria-6.0",
   "rating": 3630,
   "source": "CCRL Blitz complete list 2026-10-03"
+ },
+ {
+  "name": "lc0-0.32.1-t1-256x10",
+  "repo": "https://github.com/LeelaChessZero/lc0",
+  "tag": "v0.32.1",
+  "build": "sudo apt-get install -y -qq meson ninja-build libopenblas-dev zlib1g-dev && ./build.sh -Dgtest=false -Donnx=false && curl -sSfL -o net.pb.gz https://storage.lczero.org/files/networks-contrib/t1-256x10-distilled-swa-2432500.pb.gz && printf '#!/bin/sh\\nexport OPENBLAS_NUM_THREADS=1\\nexec %s/build/release/lc0 --weights=%s/net.pb.gz --backend=blas --threads=2 \"$@\"\\n' \"$PWD\" \"$PWD\" > lc0.sh && chmod +x lc0.sh",
+  "binary": "lc0.sh",
+  "id_contains": "v0.32.1",
+  "rating": null,
+  "source": "Leela Chess Zero on CPU (BLAS backend, 2 threads), net T1-256x10-distilled (lczero.org best nets, small, GPU/CPU); no CCRL rating at this setting"
  }
 ]
