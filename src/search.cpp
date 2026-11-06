@@ -75,23 +75,23 @@ struct TuneReg { TuneReg(const char* n, int* v, int lo, int hi) { tunables[n_tun
 #else
 #define TUNABLE(name, value, lo, hi) constexpr int name = value;
 #endif
-TUNABLE(RFP_MARGIN, 64, 40, 160)      // reverse futility pruning: centipawns per ply of depth
-TUNABLE(RFP_DEPTH, 7, 4, 12)
-TUNABLE(RAZOR_MARGIN, 227, 100, 500)  // razoring: centipawns per ply of depth
-TUNABLE(NMP_BASE, 3, 2, 5)            // null-move reduction NMP_BASE + depth / NMP_DIV
+TUNABLE(RFP_MARGIN, 56, 40, 160)      // reverse futility pruning: centipawns per ply of depth
+TUNABLE(RFP_DEPTH, 6, 4, 12)
+TUNABLE(RAZOR_MARGIN, 206, 100, 500)  // razoring: centipawns per ply of depth
+TUNABLE(NMP_BASE, 4, 2, 5)            // null-move reduction NMP_BASE + depth / NMP_DIV
 TUNABLE(NMP_DIV, 5, 3, 12)
-TUNABLE(SE_MARGIN, 13, 6, 48)         // singular-extension margin in eighths of a centipawn per ply (16: 2 * depth)
-TUNABLE(FUT_BASE, 101, 40, 200)       // futility pruning margin FUT_BASE + FUT_MARGIN * depth
-TUNABLE(FUT_MARGIN, 90, 40, 200)
+TUNABLE(SE_MARGIN, 14, 6, 48)         // singular-extension margin in eighths of a centipawn per ply (16: 2 * depth)
+TUNABLE(FUT_BASE, 98, 40, 200)        // futility pruning margin FUT_BASE + FUT_MARGIN * depth
+TUNABLE(FUT_MARGIN, 88, 40, 200)
 TUNABLE(SEE_CAPTURE, 18, 8, 40)       // SEE pruning thresholds -SEE_CAPTURE * depth^2 (captures), -SEE_QUIET * depth
-TUNABLE(SEE_QUIET, 49, 20, 100)
-TUNABLE(LMR_BASE, 64, 0, 150)         // LMR table LMR_BASE / 100 + ln(depth) ln(move number) / (LMR_DIV / 100)
-TUNABLE(LMR_DIV, 207, 150, 350)
-TUNABLE(HIST_MAX, 1108, 400, 2400)    // history bonus min(depth^2, HIST_MAX)
-TUNABLE(ASP_DELTA, 21, 10, 60)        // first aspiration window half-width, centipawns
+TUNABLE(SEE_QUIET, 50, 20, 100)
+TUNABLE(LMR_BASE, 65, 0, 150)         // LMR table LMR_BASE / 100 + ln(depth) ln(move number) / (LMR_DIV / 100)
+TUNABLE(LMR_DIV, 208, 150, 350)
+TUNABLE(HIST_MAX, 1080, 400, 2400)    // history bonus min(depth^2, HIST_MAX)
+TUNABLE(ASP_DELTA, 19, 10, 60)        // first aspiration window half-width, centipawns
 TUNABLE(LMP_BASE, 5, 1, 8)            // late move pruning: quiet moves after LMP_BASE + depth^2 moves skipped (depth <= 8)
-TUNABLE(CORR_PAWN_W, 96, 32, 192)     // correction weights in 128ths: pawn-structure table...
-TUNABLE(CORR_NP_W, 48, 0, 128)        // ...and each side's non-pawn pieces table
+TUNABLE(CORR_PAWN_W, 99, 32, 192)     // correction weights in 128ths: pawn-structure table...
+TUNABLE(CORR_NP_W, 54, 0, 128)        // ...and each side's non-pawn pieces table
 std::atomic<bool> g_helpers_stop{false};  // set when the main thread has finished: helpers stop too
 
 uint64_t total_nodes() {
