@@ -35,7 +35,7 @@ const NUM_OB: usize = 8;
 const SCALE: i32 = 400;
 const QA: i16 = 255;
 const QB: i16 = 64;
-const QL1: i8 = 64;      // multi-layer net: L1 weights as i8 at this scale
+const QL1: i16 = 64;     // multi-layer net: L1 weights as i8 at this scale
 const L2: usize = 16;    // multi-layer net: L1 outputs per output bucket (then 32, then 1)
 
 // Six fixed positions (opening -> pawn endgame); their float evals become the engine's cross-check fixture.
