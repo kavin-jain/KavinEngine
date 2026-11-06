@@ -92,6 +92,7 @@ TUNABLE(ASP_DELTA, 19, 10, 60)        // first aspiration window half-width, cen
 TUNABLE(LMP_BASE, 5, 1, 8)            // late move pruning: quiet moves after LMP_BASE + depth^2 moves skipped (depth <= 8)
 TUNABLE(CORR_PAWN_W, 99, 32, 192)     // correction weights in 128ths: pawn-structure table...
 TUNABLE(CORR_NP_W, 54, 0, 128)        // ...and each side's non-pawn pieces table
+TUNABLE(HP_MARGIN, 3072, 512, 8192)   // history pruning: quiet history below -HP_MARGIN * depth (depth <= 3) is skipped
 std::atomic<bool> g_helpers_stop{false};  // set when the main thread has finished: helpers stop too
 
 uint64_t total_nodes() {
@@ -390,6 +391,8 @@ int negamax(int alpha, int beta, int depth, int ply, bool null_ok, bool cutnode,
         const bool quiet = !is_capture(m) && !is_promo(m);
         // Late move pruning: near the leaves, quiet moves this late in the ordering almost never matter.
         if (!pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 8 && legal >= LMP_BASE + depth * depth) continue;
+        // History pruning: this close to the leaves, a quiet move with a history this bad is skipped (killers kept).
+        if (!pv_node && !in_check && quiet && best > -MATE_BOUND && depth <= 3 && scores[i] < -HP_MARGIN * depth) continue;
         // SEE pruning: near the leaves, skip captures that lose material by force...
         if (!pv_node && !in_check && !quiet && best > -MATE_BOUND && depth <= 8 && !see_ge(S->board, m, -SEE_CAPTURE * depth * depth))
             continue;
