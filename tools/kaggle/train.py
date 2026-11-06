@@ -83,9 +83,12 @@ def leela_stream(iters, folder="S2", name=S2_NAME):  # streamed download -> zstd
         if shutil.disk_usage(d).free < 25e9:  # each file adds ~17 GB of shards; train on what fits
             print(f"disk nearly full: stopping before iter-{i}", flush=True); break
         f = name.format(i=i)
-        sh(f"set -o pipefail; curl -sSfL https://huggingface.co/datasets/linrock/bullet-training-data/resolve/main/{folder}/{f} | "
-           "python3 -c 'import sys, zstandard; zstandard.ZstdDecompressor().copy_stream(sys.stdin.buffer, sys.stdout.buffer)' | "
-           f"/tmp/ke/build/lichess_convert shard {d} /dev/stdin")  # shard appends, so the files mix at random
+        # To disk first, resuming on drops (2026-11-07: a streamed download died mid-file with HTTP/2 INTERNAL_ERROR,
+        # and a re-stream would append duplicate records), then decompress into the shards and delete the file.
+        sh(f"curl -sSfL --http1.1 --retry 20 --retry-all-errors --retry-delay 10 -C - -o /tmp/s.zst "
+           f"https://huggingface.co/datasets/linrock/bullet-training-data/resolve/main/{folder}/{f}")
+        sh("set -o pipefail; python3 -c 'import sys, zstandard; zstandard.ZstdDecompressor().copy_stream(open(\"/tmp/s.zst\", \"rb\"), sys.stdout.buffer)' | "
+           f"/tmp/ke/build/lichess_convert shard {d} /dev/stdin && rm /tmp/s.zst")  # shard appends, so the files mix at random
     sh(f"/tmp/ke/build/lichess_convert shuffle {d}/*.bin && du -sh {d} && df -h /tmp")
     return d
 
