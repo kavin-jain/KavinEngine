@@ -4,6 +4,8 @@ EVALFILE    ?= nets/ft1024-b.bin
 NNUE_HIDDEN ?= 1024
 NNUE_KB     ?= 10
 NNUE_OB     ?= 8
+# 1: multi-layer net (pairwise CReLU -> 16 -> 32 -> 1 per output bucket; trainer ARCH=ml)
+NNUE_ML     ?= 0
 # Default of the UCI Threads option (cloud matches set it per side).
 THREADS     ?= 1
 # clang++ when installed: it vectorises the SCReLU dot product much better than g++ (+8.0 % nps on GitHub's
@@ -18,7 +20,7 @@ else
   NATIVE := -march=native
 endif
 CXXFLAGS ?= -std=c++17 -O3 -Wall -Wextra -DNDEBUG $(NATIVE)
-CXXFLAGS += -DDEFAULT_THREADS=$(THREADS) -DNNUE_HIDDEN=$(NNUE_HIDDEN) -DNNUE_KING_BUCKETS=$(NNUE_KB) -DNNUE_OUTPUT_BUCKETS=$(NNUE_OB)
+CXXFLAGS += -DDEFAULT_THREADS=$(THREADS) -DNNUE_HIDDEN=$(NNUE_HIDDEN) -DNNUE_KING_BUCKETS=$(NNUE_KB) -DNNUE_OUTPUT_BUCKETS=$(NNUE_OB) -DNNUE_ML=$(NNUE_ML)
 ifeq ($(TUNE),1)
   CXXFLAGS += -DTUNE  # search constants as UCI options, for SPSA (tools/spsa.py)
 endif
@@ -60,7 +62,7 @@ material: $(SRC) $(HDR) pc/main.cpp $(NET_CPP)
 
 test: $(SRC) $(HDR) $(NET_CPP) $(wildcard tests/*.cpp tests/*.h)
 	@mkdir -p build
-	$(CXX) -std=c++17 -O2 -g -Wall -Wextra -DNNUE_HIDDEN=$(NNUE_HIDDEN) -DNNUE_KING_BUCKETS=$(NNUE_KB) -DNNUE_OUTPUT_BUCKETS=$(NNUE_OB) -DEVALS_TXT='"$(basename $(EVALFILE)).evals.txt"' -o build/tests $(SRC) $(NET_CPP) $(wildcard tests/*.cpp) -pthread
+	$(CXX) -std=c++17 -O2 -g -Wall -Wextra -DNNUE_HIDDEN=$(NNUE_HIDDEN) -DNNUE_KING_BUCKETS=$(NNUE_KB) -DNNUE_OUTPUT_BUCKETS=$(NNUE_OB) -DNNUE_ML=$(NNUE_ML) -DEVALS_TXT='"$(basename $(EVALFILE)).evals.txt"' -o build/tests $(SRC) $(NET_CPP) $(wildcard tests/*.cpp) -pthread
 	./build/tests
 
 convert: tools/lichess_convert.cpp tools/chessboard_record.h tools/lichess_parse.h $(CORE_SRC) $(HDR)
