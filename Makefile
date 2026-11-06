@@ -1,11 +1,11 @@
 # PC build. OpenBench/CCRL convention: `make EXE=<path> EVALFILE=<net>`.
 EXE         ?= engine
-EVALFILE    ?= nets/ft1024-b.bin
+EVALFILE    ?= nets/ml-test.bin
 NNUE_HIDDEN ?= 1024
 NNUE_KB     ?= 10
 NNUE_OB     ?= 8
 # 1: multi-layer net (pairwise CReLU -> 16 -> 32 -> 1 per output bucket; trainer ARCH=ml)
-NNUE_ML     ?= 0
+NNUE_ML     ?= 1
 # Default of the UCI Threads option (cloud matches set it per side).
 THREADS     ?= 1
 # clang++ when installed: it vectorises the SCReLU dot product much better than g++ (+8.0 % nps on GitHub's
