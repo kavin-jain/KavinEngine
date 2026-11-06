@@ -218,9 +218,10 @@ int nnue_evaluate(const Accumulator& acc, Color stm, int pieces) {
     float out = ML3B[ob];
     for (int k = 0; k < L2; ++k) out += h2[k] * ML3W[ob * L2 + k];
     return int(out * NNUE_SCALE);
-#endif
+#else
     const int16_t* w = W1 + ob * 2 * N;
     const int64_t sum = screlu_dot(acc.v[stm], w) + screlu_dot(acc.v[~stm], w + N);
     const int64_t out = sum / NNUE_QA + B1[ob];
     return int(out * NNUE_SCALE / (NNUE_QA * NNUE_QB));
+#endif
 }
