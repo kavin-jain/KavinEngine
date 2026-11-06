@@ -1,6 +1,6 @@
 # PC build. OpenBench/CCRL convention: `make EXE=<path> EVALFILE=<net>`.
 EXE         ?= engine
-EVALFILE    ?= nets/ft1024-b.bin
+EVALFILE    ?= nets/ft2-lr3e5.bin
 NNUE_HIDDEN ?= 1024
 NNUE_KB     ?= 10
 NNUE_OB     ?= 8
