@@ -253,10 +253,10 @@ int qsearch(int alpha, int beta, int ply) {
     const int alpha0 = alpha;
     Move best_move = NO_MOVE;
     const bool in_check = S->board.in_check();
-    int best = -INF, raw_eval = EVAL_NONE;
+    int best = -INF, raw_eval = EVAL_NONE, stand_pat = -INF;
     if (!in_check) {  // stand pat
         raw_eval = tt_hit && tte.eval != EVAL_NONE ? tte.eval : eval_at(ply);
-        best = corrected(raw_eval);
+        best = stand_pat = corrected(raw_eval);
         if (best >= beta) {
             if (!tt_hit) g_tt.store(S->board.key, NO_MOVE, 0, 0, BOUND_NONE, raw_eval);
             return best;
@@ -272,11 +272,13 @@ int qsearch(int alpha, int beta, int ply) {
     for (int i = 0; i < list.size; ++i) {
         Move m = pick(list, scores, see_pending, i);
         if (!in_check && scores[i] < 0) break;  // losing captures (SEE < 0, sorted last) can't beat the stand-pat
-        // Delta pruning: even winning the captured piece outright leaves this capture short of alpha.
-        if (!in_check && !is_promo(m) && best > -MATE_BOUND) {
+        // Delta pruning: even winning the captured piece outright leaves this capture short of alpha. The skipped
+        // capture's optimistic value still counts toward best, so a fail-low result stays a valid upper bound.
+        if (!in_check && !is_promo(m)) {
             static constexpr int VALUE[6] = {100, 300, 300, 500, 900, 0};
             const int victim = flags_of(m) == EP_CAPTURE ? PAWN : int(type_of(S->board.mailbox[to_sq(m)]));
-            if (best + VALUE[victim] + QS_DELTA <= alpha) continue;
+            const int optimistic = stand_pat + VALUE[victim] + QS_DELTA;
+            if (optimistic <= alpha) { best = std::max(best, optimistic); continue; }
         }
         S->moved[ply] = move_key(m);
         if (!S->board.make(m)) continue;
