@@ -80,8 +80,11 @@ def leela_stream(iters, folder="S2", name=S2_NAME):  # streamed download -> zstd
     os.makedirs(d, exist_ok=True)
     sh("pip install -q zstandard && make -C /tmp/ke -s convert")
     for i in iters:
-        if shutil.disk_usage(d).free < 25e9:  # each file adds ~17 GB of shards; train on what fits
-            print(f"disk nearly full: stopping before iter-{i}", flush=True); break
+        # Each file adds ~17 GB of shards. df reports ~900 GB free, but sessions holding ~141 GB (S2 iter-1..8) were
+        # killed without a log three times (2026-11-07) while 70-77 GB always worked: cap what we write ourselves.
+        used = sum(os.path.getsize(f) for f in glob.glob(f"{d}/*.bin"))
+        if used > 65e9 or shutil.disk_usage(d).free < 25e9:  # 4 files (~70 GB) is the most that has survived
+            print(f"data cap ({used / 1e9:.0f} GB of shards): stopping before iter-{i}", flush=True); break
         f = name.format(i=i)
         # To disk first, resuming on drops (2026-11-07: a streamed download died mid-file with HTTP/2 INTERNAL_ERROR,
         # and a re-stream would append duplicate records), then decompress into the shards and delete the file.
