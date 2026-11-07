@@ -1,0 +1,4 @@
+gauntlet lc0-v1 (25e44bf, tc 60+0.6, option.Threads=2, book 8moves_v3, 6/6 jobs)
+  vs lc0-0.32.1-11258-112x9 (unrated): +53 =7 -0 score 94.2% Elo diff +483 time losses 0
+  vs lc0-0.32.1-t1-256x10 (unrated): +54 =6 -0 score 95.0% Elo diff +512 time losses 0
+RESULT lc0-v1: head-to-head only (no rated anchor), 120 games

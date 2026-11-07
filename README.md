@@ -66,6 +66,18 @@ and checked by name before playing ([tools/gauntlet.py](tools/gauntlet.py)). Sam
 **Fit: 3495 ± 11** (95 %), up from 3449 ± 11 on 2026-10-08: singular extensions, threat-aware history and a
 profile-guided build in one day. The score rose against every opponent.
 
+**Against Leela Chess Zero on the same hardware** (2026-11-07, 120 games, 60+0.6, both engines 2 CPU threads, Lc0
+v0.32.1 built from its release tag with the BLAS CPU backend, games in [results/gauntlet/lc0-v1/](results/gauntlet/lc0-v1/)):
+
+| Lc0 network | Games | Score | Elo difference |
+|---|---|---|---|
+| 11258-112x9-se (distilled ResNet sized for CPUs) | 60 | +53 =7 −0 (94.2 %) | about +480 |
+| T1-256x10-distilled (lczero.org's small transformer) | 60 | +54 =6 −0 (95.0 %) | about +510 |
+
+On a CPU, Lc0 reached depth 5–6 per move against our 19: a network that big evaluates a few hundred positions per
+second, where alpha-beta search with a small NNUE evaluates over a million. This compares equal hardware only. Lc0 on a
+GPU with its largest networks is far stronger than this and stronger than KavinEngine.
+
 ## How every change is tested
 
 Nothing merges on a hunch. Each change plays thousands of games against the current version on GitHub Actions

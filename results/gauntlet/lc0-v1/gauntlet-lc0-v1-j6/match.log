@@ -1,0 +1,112 @@
+Indexing opening suite...
+Started game 1 of 20 (KavinEngine vs lc0-0.32.1-t1-256x10)
+Started game 2 of 20 (lc0-0.32.1-t1-256x10 vs KavinEngine)
+[1m[31m       _
+|   _ | |
+|_ |_ |_|[0m v0.32.1 built Nov  6 2026
+Search algorithm: classic
+[1m[31m       _
+|   _ | |
+|_ |_ |_|[0m v0.32.1 built Nov  6 2026
+Search algorithm: classic
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Loading weights file from: /home/runner/work/KavinEngine/KavinEngine/src-lc0-0.32.1-t1-256x10/net.pb.gz
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Loading weights file from: /home/runner/work/KavinEngine/KavinEngine/src-lc0-0.32.1-t1-256x10/net.pb.gz
+BLAS vendor: OpenBLAS.
+OpenBLAS [OpenBLAS 0.3.32 NO_LAPACKE DYNAMIC_ARCH NO_AFFINITY Zen MAX_THREADS=128].
+OpenBLAS found 4 Zen core(s).
+BLAS max batch size is 256.
+BLAS vendor: OpenBLAS.
+OpenBLAS [OpenBLAS 0.3.32 NO_LAPACKE DYNAMIC_ARCH NO_AFFINITY Zen MAX_THREADS=128].
+OpenBLAS found 4 Zen core(s).
+BLAS max batch size is 256.
+Finished game 2 (lc0-0.32.1-t1-256x10 vs KavinEngine): 0-1 {Black mates}
+Started game 3 of 20 (KavinEngine vs lc0-0.32.1-11258-112x9)
+[1m[31m       _
+|   _ | |
+|_ |_ |_|[0m v0.32.1 built Nov  6 2026
+Search algorithm: classic
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Loading weights file from: /home/runner/work/KavinEngine/KavinEngine/src-lc0-0.32.1-11258-112x9/net.pb.gz
+BLAS vendor: OpenBLAS.
+OpenBLAS [OpenBLAS 0.3.32 NO_LAPACKE DYNAMIC_ARCH NO_AFFINITY Zen MAX_THREADS=128].
+OpenBLAS found 4 Zen core(s).
+BLAS max batch size is 256.
+Finished game 1 (KavinEngine vs lc0-0.32.1-t1-256x10): 1-0 {White mates}
+Started game 4 of 20 (lc0-0.32.1-11258-112x9 vs KavinEngine)
+[1m[31m       _
+|   _ | |
+|_ |_ |_|[0m v0.32.1 built Nov  6 2026
+Search algorithm: classic
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Loading weights file from: /home/runner/work/KavinEngine/KavinEngine/src-lc0-0.32.1-11258-112x9/net.pb.gz
+BLAS vendor: OpenBLAS.
+OpenBLAS [OpenBLAS 0.3.32 NO_LAPACKE DYNAMIC_ARCH NO_AFFINITY Zen MAX_THREADS=128].
+OpenBLAS found 4 Zen core(s).
+BLAS max batch size is 256.
+Finished game 4 (lc0-0.32.1-11258-112x9 vs KavinEngine): 1/2-1/2 {Draw by 3-fold repetition}
+Started game 5 of 20 (KavinEngine vs lc0-0.32.1-t1-256x10)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 3 (KavinEngine vs lc0-0.32.1-11258-112x9): 1-0 {White mates}
+Started game 6 of 20 (lc0-0.32.1-t1-256x10 vs KavinEngine)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 5 (KavinEngine vs lc0-0.32.1-t1-256x10): 1-0 {White mates}
+Started game 7 of 20 (KavinEngine vs lc0-0.32.1-11258-112x9)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Finished game 6 (lc0-0.32.1-t1-256x10 vs KavinEngine): 0-1 {Black mates}
+Started game 8 of 20 (lc0-0.32.1-11258-112x9 vs KavinEngine)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Finished game 7 (KavinEngine vs lc0-0.32.1-11258-112x9): 1-0 {White mates}
+Started game 9 of 20 (KavinEngine vs lc0-0.32.1-t1-256x10)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 8 (lc0-0.32.1-11258-112x9 vs KavinEngine): 0-1 {Black mates}
+Started game 10 of 20 (lc0-0.32.1-t1-256x10 vs KavinEngine)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 9 (KavinEngine vs lc0-0.32.1-t1-256x10): 1-0 {White mates}
+Started game 11 of 20 (KavinEngine vs lc0-0.32.1-11258-112x9)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Finished game 10 (lc0-0.32.1-t1-256x10 vs KavinEngine): 0-1 {Black mates}
+Started game 12 of 20 (lc0-0.32.1-11258-112x9 vs KavinEngine)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Finished game 11 (KavinEngine vs lc0-0.32.1-11258-112x9): 1-0 {White mates}
+Started game 13 of 20 (KavinEngine vs lc0-0.32.1-t1-256x10)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 12 (lc0-0.32.1-11258-112x9 vs KavinEngine): 0-1 {Black mates}
+Started game 14 of 20 (lc0-0.32.1-t1-256x10 vs KavinEngine)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 13 (KavinEngine vs lc0-0.32.1-t1-256x10): 1-0 {White mates}
+Started game 15 of 20 (KavinEngine vs lc0-0.32.1-11258-112x9)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Finished game 15 (KavinEngine vs lc0-0.32.1-11258-112x9): 1-0 {White mates}
+Started game 16 of 20 (lc0-0.32.1-11258-112x9 vs KavinEngine)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Finished game 14 (lc0-0.32.1-t1-256x10 vs KavinEngine): 0-1 {Black mates}
+Started game 17 of 20 (KavinEngine vs lc0-0.32.1-t1-256x10)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 16 (lc0-0.32.1-11258-112x9 vs KavinEngine): 1/2-1/2 {Draw by 3-fold repetition}
+Started game 18 of 20 (lc0-0.32.1-t1-256x10 vs KavinEngine)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 17 (KavinEngine vs lc0-0.32.1-t1-256x10): 1-0 {White mates}
+Started game 19 of 20 (KavinEngine vs lc0-0.32.1-11258-112x9)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Finished game 19 (KavinEngine vs lc0-0.32.1-11258-112x9): 1-0 {White mates}
+Started game 20 of 20 (lc0-0.32.1-11258-112x9 vs KavinEngine)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Finished game 20 (lc0-0.32.1-11258-112x9 vs KavinEngine): 0-1 {Black mates}
+--------------------------------------------------
+Rank Name                             Elo        +/-       nElo        +/-      Games      Score       Draw           Ptnml(0-2)
+   1 KavinEngine                   492.18       -nan    1050.55     160.50         18      94.4%       0.0%      [0, 0, 0, 2, 7]
+   2 lc0-0.32.1-11258-112x9       -381.70       -nan    -802.37     215.34         10      10.0%       0.0%      [3, 2, 0, 0, 0]
+   3 lc0-0.32.1-t1-256x10            -inf       -nan       -inf       -nan          8       0.0%       0.0%      [4, 0, 0, 0, 0]
+--------------------------------------------------
+Finished game 18 (lc0-0.32.1-t1-256x10 vs KavinEngine): 0-1 {Black mates}
+--------------------------------------------------
+Rank Name                             Elo        +/-       nElo        +/-      Games      Score       Draw           Ptnml(0-2)
+   1 KavinEngine                   511.50       -nan    1105.53     152.27         20      95.0%       0.0%      [0, 0, 0, 2, 8]
+   2 lc0-0.32.1-11258-112x9       -381.70       -nan    -802.37     215.34         10      10.0%       0.0%      [3, 2, 0, 0, 0]
+   3 lc0-0.32.1-t1-256x10            -inf       -nan       -inf       -nan         10       0.0%       0.0%      [5, 0, 0, 0, 0]
+--------------------------------------------------
+Finished match
+Total Time: 00:27:23 (hours:minutes:seconds)
+

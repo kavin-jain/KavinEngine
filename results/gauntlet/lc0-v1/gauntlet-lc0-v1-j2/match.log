@@ -1,0 +1,186 @@
+Indexing opening suite...
+Started game 1 of 20 (KavinEngine vs lc0-0.32.1-t1-256x10)
+Started game 2 of 20 (lc0-0.32.1-t1-256x10 vs KavinEngine)
+[1m[31m       _
+|   _ | |
+|_ |_ |_|[0m v0.32.1 built Nov  6 2026
+Search algorithm: classic
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Loading weights file from: /home/runner/work/KavinEngine/KavinEngine/src-lc0-0.32.1-t1-256x10/net.pb.gz
+[1m[31m       _
+|   _ | |
+|_ |_ |_|[0m v0.32.1 built Nov  6 2026
+Search algorithm: classic
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Loading weights file from: /home/runner/work/KavinEngine/KavinEngine/src-lc0-0.32.1-t1-256x10/net.pb.gz
+BLAS vendor: OpenBLAS.
+OpenBLAS [OpenBLAS 0.3.32 NO_LAPACKE DYNAMIC_ARCH NO_AFFINITY Zen MAX_THREADS=128].
+OpenBLAS found 4 Zen core(s).
+BLAS max batch size is 256.
+BLAS vendor: OpenBLAS.
+OpenBLAS [OpenBLAS 0.3.32 NO_LAPACKE DYNAMIC_ARCH NO_AFFINITY Zen MAX_THREADS=128].
+OpenBLAS found 4 Zen core(s).
+BLAS max batch size is 256.
+Finished game 1 (KavinEngine vs lc0-0.32.1-t1-256x10): 1-0 {White mates}
+Started game 3 of 20 (KavinEngine vs lc0-0.32.1-11258-112x9)
+[1m[31m       _
+|   _ | |
+|_ |_ |_|[0m v0.32.1 built Nov  6 2026
+Search algorithm: classic
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Loading weights file from: /home/runner/work/KavinEngine/KavinEngine/src-lc0-0.32.1-11258-112x9/net.pb.gz
+BLAS vendor: OpenBLAS.
+OpenBLAS [OpenBLAS 0.3.32 NO_LAPACKE DYNAMIC_ARCH NO_AFFINITY Zen MAX_THREADS=128].
+OpenBLAS found 4 Zen core(s).
+BLAS max batch size is 256.
+Finished game 2 (lc0-0.32.1-t1-256x10 vs KavinEngine): 0-1 {Black mates}
+Started game 4 of 20 (lc0-0.32.1-11258-112x9 vs KavinEngine)
+[1m[31m       _
+|   _ | |
+|_ |_ |_|[0m v0.32.1 built Nov  6 2026
+Search algorithm: classic
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Loading weights file from: /home/runner/work/KavinEngine/KavinEngine/src-lc0-0.32.1-11258-112x9/net.pb.gz
+BLAS vendor: OpenBLAS.
+OpenBLAS [OpenBLAS 0.3.32 NO_LAPACKE DYNAMIC_ARCH NO_AFFINITY Zen MAX_THREADS=128].
+OpenBLAS found 4 Zen core(s).
+BLAS max batch size is 256.
+Finished game 3 (KavinEngine vs lc0-0.32.1-11258-112x9): 1-0 {White mates}
+Started game 5 of 20 (KavinEngine vs lc0-0.32.1-t1-256x10)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 4 (lc0-0.32.1-11258-112x9 vs KavinEngine): 1/2-1/2 {Draw by 3-fold repetition}
+Started game 6 of 20 (lc0-0.32.1-t1-256x10 vs KavinEngine)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 5 (KavinEngine vs lc0-0.32.1-t1-256x10): 1-0 {White mates}
+Started game 7 of 20 (KavinEngine vs lc0-0.32.1-11258-112x9)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Warning; PV continues after threefold repetition - move c1c2 from KavinEngine
+Info; info depth 8 seldepth 13 score cp 57 nodes 11243 nps 1124300 time 10 pv f1d1 g5h4 d1f1 h4g5 c1c2 g5f5 e2f4 h5h4
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5
+Warning; PV continues after threefold repetition - move c1c2 from KavinEngine
+Info; info depth 9 seldepth 15 score cp 52 nodes 12958 nps 1178000 time 11 pv f1d1 g5h4 d1f1 h4g5 c1c2 g5f5 e2f4 h5h4 d4a1 d6d7 f1d1
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5
+Warning; PV continues after threefold repetition - move d4b2 from KavinEngine
+Info; info depth 10 seldepth 19 score cp 69 nodes 28043 nps 1078576 time 26 pv f1d1 g5h4 d1f1 h4g5 d4b2 h5h4 f1d1 g5f5 f2f3 e4g3 e2g3
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5
+Warning; PV continues after threefold repetition - move c1c2 from KavinEngine
+Info; info depth 11 seldepth 14 score cp 70 nodes 31824 nps 1060800 time 30 pv f1d1 g5h4 d1f1 h4g5 c1c2 g5f5 h3h4 c6d4 e2d4 f5f6 d4f3 d6c6
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5
+Warning; PV continues after threefold repetition - move e2f4 from KavinEngine
+Info; info depth 14 seldepth 28 score cp 67 nodes 166316 nps 1511963 time 110 pv f1d1 g5h4 d1f1 h4g5 e2f4 h5h4 f1d1 g5f5 d3f1 d8e8 f4e2 f5g5 f1e1 c6d4 d1d4 d6c6 e2f4 e8c8
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5
+Warning; PV continues after threefold repetition - move e2f4 from KavinEngine
+Info; info depth 17 seldepth 35 score cp 65 nodes 1154190 nps 1555512 time 742 pv f1d1 g5h4 d1f1 h4g5 e2f4 h5h4 c1d1 c6d4 d3d4 g5f5 d1c1 g7g5 f4e2 d8e8 a3a4 d6g6 f2f3 e4g3 e2g3 h4g3
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5
+Warning; PV continues after threefold repetition - move e2f4 from KavinEngine
+Info; info depth 18 seldepth 33 score cp 48 nodes 1803069 nps 1555710 time 1159 pv f1d1 g5h4 d1f1 h4g5 e2f4 h5h4 f1d1 g5f5 d3f1 d8e8 f4e2 f5g5 f1e1 g5g6 e2f4 g6f5 e1f1 g8h7 f4e2 h7g8 d4a1 e8d8 e2f4
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5
+Warning; PV continues after threefold repetition - move e2f4 from KavinEngine
+Info; info depth 19 seldepth 37 score cp 55 nodes 2660720 nps 1519543 time 1751 pv f1d1 g5h4 d1f1 h4g5 e2f4 h5h4 f1d1 g5f5 d3f1 d8e8 f4e2 f5g5 f1e1 g5g6 e2f4 g6f5 e1f1 g8h7 f4e2 h7g8 d4a1 e8d8 a1b2 c6e5
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5
+Finished game 6 (lc0-0.32.1-t1-256x10 vs KavinEngine): 0-1 {Black mates}
+Started game 8 of 20 (lc0-0.32.1-11258-112x9 vs KavinEngine)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Warning; PV continues after threefold repetition - move e2f4 from KavinEngine
+Info; info depth 4 seldepth 6 score cp 41 nodes 1398 nps 0 time 0 pv d1f1 h4g5 e2f4 h5h4
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5 f1d1 g5h4
+Warning; PV continues after threefold repetition - move c1c2 from KavinEngine
+Info; info depth 5 seldepth 7 score cp 56 nodes 2110 nps 2110000 time 1 pv d1f1 h4g5 c1c2 c6d4 e2d4
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5 f1d1 g5h4
+Warning; PV continues after threefold repetition - move c1c2 from KavinEngine
+Info; info depth 6 seldepth 6 score cp 44 nodes 2911 nps 2911000 time 1 pv d1f1 h4g5 c1c2 c6d4 d3d4 d6g6
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5 f1d1 g5h4
+Warning; PV continues after threefold repetition - move e2f4 from KavinEngine
+Info; info depth 7 seldepth 11 score cp 52 nodes 7007 nps 1751750 time 4 pv d1f1 h4g5 e2f4 h5h4 f1d1 g5f5 d3e2
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5 f1d1 g5h4
+Warning; PV continues after threefold repetition - move e2f4 from KavinEngine
+Info; info depth 8 seldepth 12 score cp 35 nodes 10437 nps 1739500 time 6 pv d1f1 h4g5 e2f4 h5h4 c1c2 g5f5 d4b2 g7g5
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5 f1d1 g5h4
+Warning; PV continues after threefold repetition - move e2f4 from KavinEngine
+Info; info depth 9 seldepth 15 score cp 69 nodes 26271 nps 1545352 time 17 pv d1f1 h4g5 e2f4 h5h4 f1d1 c6d4 d3d4 g5f5 c1c7
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5 f1d1 g5h4
+Warning; PV continues after threefold repetition - move e2f4 from KavinEngine
+Info; info depth 13 seldepth 26 score cp 66 nodes 183237 nps 1579629 time 116 pv d1f1 h4g5 e2f4 h5h4 f1d1 g5f5 d3e2 g7g5 f4h5 c6d4 d1d4 d6c6 c1c6 b7c6
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5 f1d1 g5h4
+Warning; PV continues after threefold repetition - move c1c2 from KavinEngine
+Info; info depth 15 seldepth 28 score cp 49 nodes 408735 nps 1536597 time 266 pv d1f1 h4g5 c1c2 g5f5 b4b5 a6b5 c2b2 b5b4 a3b4 c6d4 e2d4 f5g5 d4e2 d6c6 b2c2 c6c2 d3c2 g5e7 c2b2
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5 f1d1 g5h4
+Warning; PV continues after threefold repetition - move c1c2 from KavinEngine
+Info; info depth 16 seldepth 30 score cp 68 nodes 621105 nps 1514890 time 410 pv d1f1 h4g5 c1c2 g5f5 b4b5 a6b5 c2b2 b5b4 a3b4 c6d4 e2d4 f5g5 d4f3 g5f6 b2c2 g7g5 d3d4 f6e7 f1c1 g5g4 c2c7
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5 f1d1 g5h4
+Warning; PV continues after threefold repetition - move c1c2 from KavinEngine
+Info; info depth 17 seldepth 31 score cp 66 nodes 656742 nps 1513230 time 434 pv d1f1 h4g5 c1c2 g5f5 b4b5 a6b5 c2b2 b5b4 a3b4 c6d4 e2d4 f5g5 d4f3 g5f6 b2c2 g7g5 d3d4 g5g4 d4f6 d6f6 h3g4 h5g4 f3d4 g4g3 f2g3
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5 f1d1 g5h4
+Warning; PV continues after threefold repetition - move c1c2 from KavinEngine
+Info; info depth 18 seldepth 33 score cp 66 nodes 819820 nps 1509797 time 543 pv d1f1 h4g5 c1c2 g5f5 b4b5 a6b5 c2b2 b5b4 a3b4 c6d4 e2d4 f5g5 d4f3 g5f6 b2c2 g7g5 d3d4 g5g4 d4f6 d6f6 h3g4 h5g4 f3d4 g4g3 f2g3
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5 f1d1 g5h4
+Warning; PV continues after threefold repetition - move c1c2 from KavinEngine
+Info; info depth 19 seldepth 33 score cp 52 nodes 1456929 nps 1498898 time 972 pv d1f1 h4g5 c1c2 g5f5 b4b5 a6b5 c2b2 b5b4 a3b4 d8e8 b4b5 c6d4 d3d4 h5h4 b2b4 e8c8 d4d3 f5e5 b4d4 g7g6 f1d1 c8c4 d4d5 d6d5
+Position; startpos
+Moves; d2d4 g8f6 c2c4 e7e6 g1f3 f8b4 b1d2 c7c5 a2a3 b4d2 d1d2 c5d4 d2d4 e8g8 e2e3 b8c6 d4d2 d7d5 b2b4 d8e7 c1b2 f8d8 c4d5 e6d5 f1e2 f6e4 d2d1 c8g4 e1g1 a7a6 h2h3 g4h5 d1d3 d8d6 a1c1 a8d8 f3d4 h5e2 d4e2 e7g5 b2d4 h7h5 f1d1 g5h4 d1f1 h4g5 f1d1 g5h4
+Finished game 7 (KavinEngine vs lc0-0.32.1-11258-112x9): 1/2-1/2 {Draw by 3-fold repetition}
+Started game 9 of 20 (KavinEngine vs lc0-0.32.1-t1-256x10)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 8 (lc0-0.32.1-11258-112x9 vs KavinEngine): 0-1 {Black mates}
+Started game 10 of 20 (lc0-0.32.1-t1-256x10 vs KavinEngine)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 9 (KavinEngine vs lc0-0.32.1-t1-256x10): 1-0 {White mates}
+Started game 11 of 20 (KavinEngine vs lc0-0.32.1-11258-112x9)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Finished game 10 (lc0-0.32.1-t1-256x10 vs KavinEngine): 0-1 {Black mates}
+Started game 12 of 20 (lc0-0.32.1-11258-112x9 vs KavinEngine)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Finished game 11 (KavinEngine vs lc0-0.32.1-11258-112x9): 1-0 {White mates}
+Started game 13 of 20 (KavinEngine vs lc0-0.32.1-t1-256x10)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 13 (KavinEngine vs lc0-0.32.1-t1-256x10): 1-0 {White mates}
+Started game 14 of 20 (lc0-0.32.1-t1-256x10 vs KavinEngine)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 12 (lc0-0.32.1-11258-112x9 vs KavinEngine): 1/2-1/2 {Draw by insufficient mating material}
+Started game 15 of 20 (KavinEngine vs lc0-0.32.1-11258-112x9)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Finished game 14 (lc0-0.32.1-t1-256x10 vs KavinEngine): 1/2-1/2 {Draw by insufficient mating material}
+Started game 16 of 20 (lc0-0.32.1-11258-112x9 vs KavinEngine)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Finished game 15 (KavinEngine vs lc0-0.32.1-11258-112x9): 1-0 {White mates}
+Started game 17 of 20 (KavinEngine vs lc0-0.32.1-t1-256x10)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 16 (lc0-0.32.1-11258-112x9 vs KavinEngine): 0-1 {Black mates}
+Started game 18 of 20 (lc0-0.32.1-t1-256x10 vs KavinEngine)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 17 (KavinEngine vs lc0-0.32.1-t1-256x10): 1-0 {White mates}
+Started game 19 of 20 (KavinEngine vs lc0-0.32.1-11258-112x9)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Finished game 18 (lc0-0.32.1-t1-256x10 vs KavinEngine): 0-1 {Black mates}
+Started game 20 of 20 (lc0-0.32.1-11258-112x9 vs KavinEngine)
+Warning; lc0-0.32.1-11258-112x9 doesn't have option Hash
+Finished game 19 (KavinEngine vs lc0-0.32.1-11258-112x9): 1-0 {White mates}
+Finished game 20 (lc0-0.32.1-11258-112x9 vs KavinEngine): 0-1 {Black mates}
+--------------------------------------------------
+Rank Name                             Elo        +/-       nElo        +/-      Games      Score       Draw           Ptnml(0-2)
+   1 KavinEngine                   381.70     187.37     802.37     152.27         20      90.0%       0.0%      [0, 0, 0, 4, 6]
+   2 lc0-0.32.1-11258-112x9       -301.33     178.18    -702.07     215.34         10      15.0%       0.0%      [2, 3, 0, 0, 0]
+   3 lc0-0.32.1-t1-256x10         -511.50       -nan   -1105.53     215.34         10       5.0%       0.0%      [4, 1, 0, 0, 0]
+--------------------------------------------------
+Finished match
+Total Time: 00:27:12 (hours:minutes:seconds)
+

@@ -1,0 +1,3 @@
+gauntlet lc0probe (138b38e, tc 60+0.6, option.Threads=2, book 8moves_v3, 1/1 jobs)
+  vs lc0-0.32.1-t1-256x10 (unrated): +4 =0 -0 score 100.0% Elo diff +nan time losses 0
+RESULT lc0probe: head-to-head only (no rated anchor), 4 games

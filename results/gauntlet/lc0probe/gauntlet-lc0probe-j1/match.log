@@ -1,0 +1,41 @@
+Indexing opening suite...
+Started game 1 of 4 (KavinEngine vs lc0-0.32.1-t1-256x10)
+Started game 2 of 4 (lc0-0.32.1-t1-256x10 vs KavinEngine)
+[1m[31m       _
+|   _ | |
+|_ |_ |_|[0m v0.32.1 built Nov  6 2026
+Search algorithm: classic
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Loading weights file from: /home/runner/work/KavinEngine/KavinEngine/src-lc0-0.32.1-t1-256x10/net.pb.gz
+[1m[31m       _
+|   _ | |
+|_ |_ |_|[0m v0.32.1 built Nov  6 2026
+Search algorithm: classic
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Loading weights file from: /home/runner/work/KavinEngine/KavinEngine/src-lc0-0.32.1-t1-256x10/net.pb.gz
+BLAS vendor: OpenBLAS.
+OpenBLAS [OpenBLAS 0.3.32 NO_LAPACKE DYNAMIC_ARCH NO_AFFINITY Zen MAX_THREADS=128].
+OpenBLAS found 4 Zen core(s).
+BLAS max batch size is 256.
+BLAS vendor: OpenBLAS.
+OpenBLAS [OpenBLAS 0.3.32 NO_LAPACKE DYNAMIC_ARCH NO_AFFINITY Zen MAX_THREADS=128].
+OpenBLAS found 4 Zen core(s).
+BLAS max batch size is 256.
+Finished game 1 (KavinEngine vs lc0-0.32.1-t1-256x10): 1-0 {White mates}
+Started game 3 of 4 (KavinEngine vs lc0-0.32.1-t1-256x10)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 2 (lc0-0.32.1-t1-256x10 vs KavinEngine): 0-1 {Black mates}
+Started game 4 of 4 (lc0-0.32.1-t1-256x10 vs KavinEngine)
+Warning; lc0-0.32.1-t1-256x10 doesn't have option Hash
+Finished game 3 (KavinEngine vs lc0-0.32.1-t1-256x10): 1-0 {White mates}
+Finished game 4 (lc0-0.32.1-t1-256x10 vs KavinEngine): 0-1 {Black mates}
+--------------------------------------------------
+Results of KavinEngine vs lc0-0.32.1-t1-256x10 (60+0.6, 2t, 16MB - NULL, 8moves_v3.pgn):
+Elo: inf +/- -nan, nElo: inf +/- -nan
+LOS: 100.00 %, DrawRatio: 0.00 %, PairsRatio: inf
+Games: 4, Wins: 4, Losses: 0, Draws: 0, Points: 4.0 (100.00 %)
+Ptnml(0-2): [0, 0, 0, 0, 2], WL/DD Ratio: -nan
+--------------------------------------------------
+Finished match
+Total Time: 00:06:17 (hours:minutes:seconds)
+
