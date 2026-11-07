@@ -23,6 +23,7 @@ constexpr int HT = HISTORY_THREATS ? 2 : 1;
 #define CONT_HIST 1  // continuation history (a 1.2 MB table per thread would not fit the ESP32's RAM: it turns this off)
 #endif
 constexpr int CH = CONT_HIST ? 12 * 64 : 1;
+constexpr int PH = CONT_HIST ? 1024 : 1;  // pawn-history buckets (1.5 MB per thread; off on the ESP32 with CONT_HIST)
 #ifndef CORRHIST_SIZE
 #define CORRHIST_SIZE 16384  // entries per side; ESP32 builds use a smaller table
 #endif
@@ -56,6 +57,7 @@ struct Searcher {
     int16_t corr[2][CORRHIST_SIZE];  // pawn-structure correction history, scaled by 256
     int16_t corr_np[2][2][CORRHIST_SIZE];  // [side to move][piece colour] non-pawn placement correction, scaled by 256
     int16_t cont[CH][CH];            // continuation history [previous move][this move], each as piece * 64 + to
+    int16_t pawn_hist[PH][CH];       // quiet-move history per pawn structure [pawn hash bucket][piece * 64 + to]
     int moved[MAX_PLY];              // the move made at each ply as piece * 64 + to; -1 for a null move
 };
 // Static storage: these arrays must not live on the small ESP32 task stack. One searcher per thread; S is this
@@ -187,10 +189,13 @@ int16_t* cont_of(int ply, int back) {
 
 int move_key(Move m) { return S->board.mailbox[from_sq(m)] * 64 + to_sq(m); }
 
+// Pawn history: how well a quiet move (piece and destination) did with this pawn structure.
+int16_t* pawn_hist_of() { return CONT_HIST ? S->pawn_hist[pawn_index(S->board) & (PH - 1)] : nullptr; }
+
 // Captures and promotions are scored as if SEE >= 0 and marked pending: pick() runs SEE only when such a move would
 // be chosen, and demotes it to the losing-capture band if it fails. Same order as scoring SEE up front, fewer SEE calls.
 void score_moves(const MoveList& list, int16_t* scores, bool* see_pending, Move tt_move, int ply, Bitboard threats) {
-    const int16_t *c1 = cont_of(ply, 1), *c2 = cont_of(ply, 2);
+    const int16_t *c1 = cont_of(ply, 1), *c2 = cont_of(ply, 2), *ph = pawn_hist_of();
     for (int i = 0; i < list.size; ++i) {
         const Move m = list.moves[i];
         see_pending[i] = false;
@@ -203,9 +208,9 @@ void score_moves(const MoveList& list, int16_t* scores, bool* see_pending, Move 
             see_pending[i] = true;
         } else if (m == S->killers[ply][0]) scores[i] = 19000;
         else if (m == S->killers[ply][1]) scores[i] = 18999;
-        else {  // the mean of three tables bounded to +-16384 stays below the killers
+        else {  // the mean of four tables bounded to +-16384 stays below the killers
             const int k = move_key(m);
-            scores[i] = int16_t((history_of(m, threats) + (c1 ? c1[k] : 0) + (c2 ? c2[k] : 0)) / 3);
+            scores[i] = int16_t((history_of(m, threats) + (c1 ? c1[k] : 0) + (c2 ? c2[k] : 0) + (ph ? ph[k] : 0)) / 4);
         }
     }
 }
@@ -231,6 +236,7 @@ void update_history(Move m, int bonus, Bitboard threats, int ply) {
     gravity(history_of(m, threats), bonus);
     for (int back = 1; back <= 2; ++back)
         if (int16_t* c = cont_of(ply, back)) gravity(c[move_key(m)], bonus);
+    if (int16_t* ph = pawn_hist_of()) gravity(ph[move_key(m)], bonus);
 }
 
 int qsearch(int alpha, int beta, int ply) {
@@ -520,6 +526,7 @@ void clear_search_state() {
         std::memset(t.corr, 0, sizeof t.corr);
         std::memset(t.corr_np, 0, sizeof t.corr_np);
         std::memset(t.cont, 0, sizeof t.cont);
+        std::memset(t.pawn_hist, 0, sizeof t.pawn_hist);
     }
 }
 
