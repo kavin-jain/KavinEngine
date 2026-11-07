@@ -90,7 +90,7 @@ TUNABLE(LMR_DIV, 208, 150, 350)
 TUNABLE(HIST_MAX, 1080, 400, 2400)    // history bonus min(depth^2, HIST_MAX)
 TUNABLE(ASP_DELTA, 19, 10, 60)        // first aspiration window half-width, centipawns
 TUNABLE(LMP_BASE, 5, 1, 8)            // late move pruning: quiet moves after LMP_BASE + depth^2 moves skipped (depth <= 8)
-TUNABLE(QS_DELTA, 200, 50, 500)       // qsearch delta pruning: a capture is skipped when stand-pat + victim + QS_DELTA <= alpha
+TUNABLE(QS_DELTA, 200, 50, 500)       // qsearch futility: captures with SEE < 1 skipped when stand-pat + QS_DELTA <= alpha
 TUNABLE(CORR_PAWN_W, 99, 32, 192)     // correction weights in 128ths: pawn-structure table...
 TUNABLE(CORR_NP_W, 54, 0, 128)        // ...and each side's non-pawn pieces table
 std::atomic<bool> g_helpers_stop{false};  // set when the main thread has finished: helpers stop too
@@ -272,13 +272,12 @@ int qsearch(int alpha, int beta, int ply) {
     for (int i = 0; i < list.size; ++i) {
         Move m = pick(list, scores, see_pending, i);
         if (!in_check && scores[i] < 0) break;  // losing captures (SEE < 0, sorted last) can't beat the stand-pat
-        // Delta pruning: even winning the captured piece outright leaves this capture short of alpha. The skipped
-        // capture's optimistic value still counts toward best, so a fail-low result stays a valid upper bound.
-        if (!in_check && !is_promo(m)) {
-            static constexpr int VALUE[6] = {100, 300, 300, 500, 900, 0};
-            const int victim = flags_of(m) == EP_CAPTURE ? PAWN : int(type_of(S->board.mailbox[to_sq(m)]));
-            const int optimistic = stand_pat + VALUE[victim] + QS_DELTA;
-            if (optimistic <= alpha) { best = std::max(best, optimistic); continue; }
+        // Qsearch futility: far below alpha, a capture that wins no material (SEE < 1) cannot get there. Eval units
+        // are ~2x centipawns (pawn ~210, knight ~580 from the start position), so no fixed piece table here. The
+        // margin still counts toward best, so a fail-low result stays a valid upper bound.
+        if (!in_check && !is_promo(m) && stand_pat + QS_DELTA <= alpha && !see_ge(S->board, m, 1)) {
+            best = std::max(best, stand_pat + QS_DELTA);
+            continue;
         }
         S->moved[ply] = move_key(m);
         if (!S->board.make(m)) continue;
