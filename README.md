@@ -74,9 +74,9 @@ v0.32.1 built from its release tag with the BLAS CPU backend, games in [results/
 | 11258-112x9-se (distilled ResNet sized for CPUs) | 60 | +53 =7 −0 (94.2 %) | about +480 |
 | T1-256x10-distilled (lczero.org's small transformer) | 60 | +54 =6 −0 (95.0 %) | about +510 |
 
-On a CPU, Lc0 reached depth 5–6 per move against our 19: a network that big evaluates a few hundred positions per
-second, where alpha-beta search with a small NNUE evaluates over a million. This compares equal hardware only. Lc0 on a
-GPU with its largest networks is far stronger than this and stronger than KavinEngine.
+On a CPU, Lc0 reached depth 5–6 per move against our 19: its networks are built for GPUs, where KavinEngine's small
+NNUE searches over a million positions per second on one CPU core. This compares equal hardware only. Lc0 on a GPU with
+its largest networks is far stronger than this and stronger than KavinEngine.
 
 ## How every change is tested
 
